@@ -422,7 +422,7 @@ const therapyProfessionalDurations={
  'Bomba Diamagnética':15,
  'Onda de choque':15,
  'Tracción':5,
- 'Camilla FD':0
+ 'Camilla FD':15
 ,
  'ONDA':15,
  'CAMILLA':15};
@@ -964,7 +964,7 @@ function professionalReservationLabel(service){
  const normalized=normalizeSearch(service);
  if(normalized.includes('bomba')&&normalized.includes('dinamica'))return 'Poner bomba';
  if(service==='Tracción')return 'Poner tracción';
- if(service==='Camilla FD')return 'Poner camilla FD';
+ if(service==='Camilla FD')return 'Camilla';
  return service;
 }
 function professionalHoldHtml(a,column=''){
@@ -4677,7 +4677,7 @@ function calculate(){
 <script id="atlas-v136-traction-five-minute-therapist">
 (()=>{
  /* Tracción ocupa al fisioterapeuta solo durante los 5 minutos iniciales; la camilla permanece reservada toda la sesión. */
- if(typeof therapyProfessionalDurations==='object'){therapyProfessionalDurations['Tracción']=5;therapyProfessionalDurations['Camilla FD']=0}
+ if(typeof therapyProfessionalDurations==='object'){therapyProfessionalDurations['Tracción']=5;therapyProfessionalDurations['Camilla FD']=15}
  if(typeof therapiesWithoutProfessional==='object'&&typeof therapiesWithoutProfessional.delete==='function')therapiesWithoutProfessional.delete('Tracción');
  if(typeof therapiesWithoutProfessional==='object'&&typeof therapiesWithoutProfessional.delete==='function')therapiesWithoutProfessional.delete('Camilla FD');
  if(typeof therapyCompetencyRequirement==='object')therapyCompetencyRequirement['Tracción']='poner tracción';
@@ -4749,7 +4749,7 @@ function calculate(){
  delete alicanteEquipmentConfig['Camilla FD'];
  therapiesWithoutProfessional.delete('Camilla FD');
  therapyCompetencyRequirement['Camilla FD']='poner camilla FD';
- therapyProfessionalDurations['Camilla FD']=0;
+ therapyProfessionalDurations['Camilla FD']=15;
  equipmentTherapyOptions['Traccion']=['Tracción','Camilla FD'];
  equipmentTherapyOptions['Onda de choque']=['Onda de choque'];
  delete equipmentTherapyOptions['Camilla FD'];
@@ -6228,6 +6228,48 @@ window.addEventListener('message',event=>{if(event.data?.type!=='atlas:open-qual
   statisticsExportRows.push([],['CONCILIACIÓN DEL PERIODO','Valor'],['Total servicios realizados',audit.completedServices],['Total servicios cobrados',audit.chargedServices],['Realizados sin cobro vinculado',audit.completedWithoutSale],['Cobros sin servicio identificable',audit.paymentsWithoutService],['Cobros duplicados por justificante',audit.duplicatePayments],['Diferencia realizados menos cobrados',audit.difference]);
  };
  window.atlasStatisticsReconciliationV309={statisticsReconciliation};
+})();
+</script>
+<script id="atlas-resource-reservation-rules-v227">
+(()=>{
+ const rules=Object.freeze({
+  traction:Object.freeze({service:'Tracción',total:30,professional:5,equipment:'Traccion',label:'Poner tracción',competency:'poner tracción'}),
+  dynamicPump:Object.freeze({service:'Bomba Diamagnética dinámica',total:45,professional:15,equipment:'Bomba Diamagnética',label:'Poner bomba',competency:'poner bomba'}),
+  table:Object.freeze({service:'Camilla FD',total:15,professional:15,equipment:'Traccion',label:'Camilla',competency:'poner camilla FD'})
+ });
+ const normalize=value=>normalizeSearch(String(value||''));
+ const ruleFor=value=>{
+  const normalized=normalize(value);
+  if(normalized==='traccion')return rules.traction;
+  if(normalized==='camilla fd')return rules.table;
+  if(normalized.includes('bomba diamagnetica')&&normalized.includes('dinamica'))return rules.dynamicPump;
+  return null;
+ };
+ const apply=()=>{
+  for(const rule of Object.values(rules)){
+   therapyDurations[rule.service]=rule.total;
+   therapyProfessionalDurations[rule.service]=rule.professional;
+   therapiesWithoutProfessional.delete(rule.service);
+   therapyCompetencyRequirement[rule.service]=rule.competency;
+   alicanteTherapyProfessionals[rule.service]=[...professionals];
+   alicanteTherapyResources[rule.service]=[rule.equipment,...professionals];
+  }
+  equipmentTherapyOptions.Traccion=['Tracción','Camilla FD'];
+  equipmentTherapyOptions['Bomba Diamagnética']=['Bomba Diamagnética estática','Bomba Diamagnética dinámica'];
+ };
+ const baseProfessionalDuration=professionalDuration;
+ professionalDuration=function(appointment){
+  const candidates=[...(Array.isArray(appointment?.services)?appointment.services:[]),appointment?.therapy];
+  const matched=candidates.map(ruleFor).find(Boolean);
+  if(matched)return (appointment?.professional||appointmentTherapists(appointment).length)?matched.professional:0;
+  return baseProfessionalDuration(appointment);
+ };
+ const baseReservationLabel=professionalReservationLabel;
+ professionalReservationLabel=function(service){return ruleFor(service)?.label||baseReservationLabel(service)};
+ const baseApplyRuntimeSettings=applyRuntimeSettings;
+ applyRuntimeSettings=function(...args){const result=baseApplyRuntimeSettings.apply(this,args);apply();return result};
+ apply();
+ window.ATLAS_RESOURCE_RESERVATION_RULES_V227=rules;
 })();
 </script>
 <script id="atlas-cash-monthly-management-v367">
