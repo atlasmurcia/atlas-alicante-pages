@@ -1,0 +1,77 @@
+{
+  "captured_at_utc": "2026-11-13T09:05:44.742526+00:00",
+  "source": "https://atlas-alicante.evenso.es",
+  "purpose": "read-only production snapshot to reconcile hosting sources; not approved for deployment",
+  "files": [
+    {
+      "path": "index.html",
+      "bytes": 351291,
+      "sha256": "bb24927dc4edf84b8b8a02e61f8d8caf8da04382d93b38eca32d8cd2e1968b83",
+      "content_type": "text/html",
+      "last_modified": "Fri, 13 Nov 2026 08:47:59 GMT"
+    },
+    {
+      "path": "shell/internal-chat-v210.js",
+      "bytes": 22407,
+      "sha256": "16629c3686cf37056fe3380746e73f5096b38713337c3cd150aa265283d61ae1",
+      "content_type": "text/javascript",
+      "last_modified": "Mon, 09 Nov 2026 07:53:13 GMT"
+    },
+    {
+      "path": "modules/agenda.html",
+      "bytes": 1829777,
+      "sha256": "790bc405c539fcc17685692a4c6b421509c31f55fd3eda945cf8ed835e1e2cce",
+      "content_type": "text/html",
+      "last_modified": "Fri, 13 Nov 2026 08:50:42 GMT"
+    },
+    {
+      "path": "modules/ficha.html",
+      "bytes": 560373,
+      "sha256": "be2512e90adde9a1a35da35a46be2397e9f118392c7a80a8c50450529d93cc08",
+      "content_type": "text/html",
+      "last_modified": "Fri, 13 Nov 2026 08:50:33 GMT"
+    },
+    {
+      "path": "modules/finance.html",
+      "bytes": 74677,
+      "sha256": "1b20aced5f9f682c28ca064bd4d1c15987cdc46b6dc652a59fef0dba1e266d6b",
+      "content_type": "text/html",
+      "last_modified": "Mon, 09 Nov 2026 07:52:39 GMT"
+    },
+    {
+      "path": "modules/commissions.html",
+      "bytes": 46603,
+      "sha256": "350b6c54ed0b74c6bf87e29c32422a2ee4585c09f399aaac4273e4dc8744d93e",
+      "content_type": "text/html",
+      "last_modified": "Mon, 09 Nov 2026 07:52:40 GMT"
+    },
+    {
+      "path": "modules/marketing.html",
+      "bytes": 16803,
+      "sha256": "def4fa8e20f2841ff736e6f60675f8ed74ca7ea3d199992f8e4183c9de4a57ed",
+      "content_type": "text/html",
+      "last_modified": "Mon, 09 Nov 2026 07:52:41 GMT"
+    },
+    {
+      "path": "flowatlas/index.html",
+      "bytes": 427,
+      "sha256": "2ec9320d1d1c3003f46993b5a82679de188a1a6719e82d0e72e385d255f3144d",
+      "content_type": "text/html",
+      "last_modified": "Mon, 09 Nov 2026 17:07:10 GMT"
+    },
+    {
+      "path": "flowatlas/assets/index-e_Mf-3Ab.js",
+      "bytes": 284623,
+      "sha256": "398ebdb1d0ad5520650b427137b6cc76e82eb432d4e59d9981425d79842f1468",
+      "content_type": "text/javascript",
+      "last_modified": "Mon, 09 Nov 2026 17:07:10 GMT"
+    },
+    {
+      "path": "flowatlas/assets/index-iP8nVLNA.css",
+      "bytes": 174371,
+      "sha256": "b1be0f46ec38a30fbcf44f9bac2b1a4eb39cecca69201614658a800613069917",
+      "content_type": "text/css",
+      "last_modified": "Mon, 09 Nov 2026 17:07:10 GMT"
+    }
+  ]
+}
