@@ -65,6 +65,14 @@
    const saved=await client.from('internal_chat_messages').insert({client_ref:id,organization_id:me().organizationId,clinic_id:me().clinicId,sender_user_id:me().userId,recipient_user_id:recipient.id,sender_name:currentName(),recipient_name:recipient.name,body:clean,created_at:createdAt}).select('id,client_ref,sender_user_id,recipient_user_id,sender_name,recipient_name,body,created_at,read_at,deleted_at,deleted_by_user_id,deleted_by_name').single();
    if(saved.error)throw saved.error;return {payload:chatRowToMessage(saved.data),updated_at:createdAt};
   }
+  if(action==='internal-chat:task-assigned'){
+   const recipientId=String(payload?.recipientId||'');if(!recipientId)throw new Error('No se ha identificado a la persona asignada.');if(recipientId===currentUserId())return {skipped:true};
+   const directory=await client.rpc('atlas_chat_directory',{p_organization_id:me().organizationId,p_clinic_id:me().clinicId});if(directory.error)throw directory.error;
+   const recipient=(directory.data||[]).find(profile=>String(profile.user_id)===recipientId);if(!recipient?.full_name)throw new Error('La persona asignada no pertenece a esta clínica.');
+   const id=crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2),createdAt=new Date().toISOString(),body='Te han asignado una tarea nueva en ATLAS. Puedes verla en Tareas del equipo.';
+   const saved=await client.from('internal_chat_messages').insert({client_ref:id,organization_id:me().organizationId,clinic_id:me().clinicId,sender_user_id:me().userId,recipient_user_id:recipientId,sender_name:currentName(),recipient_name:recipient.full_name,body,created_at:createdAt}).select('id,client_ref,sender_user_id,recipient_user_id,sender_name,recipient_name,body,created_at,read_at,deleted_at,deleted_by_user_id,deleted_by_name').single();
+   if(saved.error)throw saved.error;const item=chatRowToMessage(saved.data);if(!messages.some(message=>String(message.id)===String(item.id)))messages.push(item);renderUsers();renderMessages();return {payload:item,updated_at:createdAt};
+  }
   if(action==='internal-chat:read'){
    const senderUserId=String(payload?.senderUserId||'');if(!senderUserId)throw new Error('No se ha podido identificar al remitente.');
    const result=await client.rpc('atlas_chat_mark_read',{p_organization_id:me().organizationId,p_clinic_id:me().clinicId,p_sender_user_id:senderUserId});if(result.error)throw result.error;
@@ -73,6 +81,7 @@
   throw new Error('Acción de chat desconocida.');
  }
  window.atlasInternalChatRequestV136=chatRequest;
+ window.atlasInternalChatNotifyTaskAssignedV1=recipientId=>chatRequest('internal-chat:task-assigned',{recipientId});
  async function start(){if(started||!me()||!centralDb())return;started=true;launcher.hidden=false;historyButton.hidden=!isAdministrator();await Promise.allSettled([loadUsers(),loadMessages(false)]);pollTimer=setInterval(()=>{if(!document.hidden)loadMessages(true)},30000)}
  launcher.onclick=()=>{enableAlerts();panel.classList.add('on');launcher.style.display='none';launcher.classList.remove('atlas-chat-alert');document.title=originalTitle;if(!selected&&users.length&&allUnread()===0){const first=users.find(item=>item.id?String(item.id)!==currentUserId():!samePerson(item.name,currentName()));if(first)selectUser(first)}loadMessages(false)};
  document.getElementById('atlasInternalChatClose').onclick=()=>{panel.classList.remove('on');launcher.style.display='';if(selected){saveRead(selected);renderUsers()}};
