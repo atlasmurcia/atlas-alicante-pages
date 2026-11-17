@@ -214,6 +214,7 @@ header{height:58px!important;background:#fff!important;border-bottom:1px solid #
     <button class="primary" id="openPatientRecordBtn">👤 Abrir ficha del paciente</button><button class="primary" id="openPatientBodyMapBtn">🧍 Mapa corporal</button><button class="primary" id="confirmAppointmentBtn">✓ Confirmar cita</button><button class="primary" id="chargeAppointmentBtn">💳 Cobrar</button><button id="appointmentReceiptBtn" class="hidden">🧾 Justificante</button><button class="primary" id="doneBtn">✓ Realizada</button>
     <button id="pendingBtn">↶ Marcar pendiente</button>
     <button id="moveBtn">✏️ Mover / editar cita</button>
+    <button id="duplicateAppointmentBtn" type="button">⧉ Duplicar cita</button>
     <button id="receiveBtn">🔔 Ha llegado</button>
     <button id="waAppointmentBtn">💬 WhatsApp</button>
     <button class="danger" id="deleteBtn">Cancelar</button>
@@ -1627,7 +1628,7 @@ function openDrawer(id){
  ((a.history||[]).length?`<br><br><b>Historial</b><div class="history-list">${a.history.slice().reverse().map(h=>`<div class="history-row">${new Date(h.at).toLocaleString('es-ES')} · ${h.user||'Usuario'} · ${h.action}</div>`).join('')}</div>`:'');
  let route=appointments.filter(x=>x.date===a.date&&((a.patientRemoteId&&String(x.patientRemoteId||'')===String(a.patientRemoteId))||(a.patientCode&&x.patientCode===a.patientCode)||(!a.patientCode&&normalizeSearch(x.patient)===normalizeSearch(a.patient)))).sort((x,y)=>mins(x.time)-mins(y.time));
  document.getElementById('route').innerHTML=route.map(x=>`<div><b>${x.time}</b> · ${x.therapy} <span class="muted">(${x.resource})</span></div>`).join('');
- document.getElementById('openPatientRecordBtn').classList.toggle('hidden',!ficha);document.getElementById('openPatientBodyMapBtn').classList.toggle('hidden',!ficha);document.getElementById('doneBtn').classList.toggle('hidden',a.status!=='Pendiente');
+ document.getElementById('openPatientRecordBtn').classList.toggle('hidden',!ficha);document.getElementById('openPatientBodyMapBtn').classList.remove('hidden');document.getElementById('doneBtn').classList.toggle('hidden',a.status!=='Pendiente');
  document.getElementById('pendingBtn').classList.toggle('hidden',a.status!=='Realizada');
  document.getElementById('deleteBtn').classList.toggle('hidden',a.status==='Cancelada');
  document.getElementById('appointmentCommentInput').value=a.notes||'';
@@ -1990,7 +1991,17 @@ document.getElementById('newBtn').onclick=()=>{
  openModal();
 };
 document.getElementById('openPatientRecordBtn').onclick=()=>{const appointment=appointments.find(x=>x.id===selectedId);if(!appointment)return;const patient=linkedPatientForAppointment(appointment);if(!patient)return alert('Esta cita no tiene una ficha de paciente vinculada.');document.getElementById('drawer').classList.remove('open');openPatientRecord(patient.code)};
-document.getElementById('openPatientBodyMapBtn').onclick=()=>{const appointment=appointments.find(x=>x.id===selectedId);if(!appointment)return;const patient=linkedPatientForAppointment(appointment);if(!patient)return alert('Esta cita no tiene una ficha de paciente vinculada.');document.getElementById('drawer').classList.remove('open');openPatientRecord(patient.code,'mapaCorporal')};
+document.getElementById('openPatientBodyMapBtn').onclick=async function(){
+ const appointment=appointments.find(x=>String(x.id)===String(selectedId));if(!appointment)return;
+ this.disabled=true;
+ try{
+  const patient=await resolvePatientForAppointment(appointment);
+  if(!patient)throw new Error('No se ha podido recuperar la ficha vinculada a esta cita. Vuelve a intentarlo cuando termine de cargar la agenda.');
+  if(String(selectedId)!==String(appointment.id))return;
+  document.getElementById('drawer').classList.remove('open');
+  await openPatientRecord(patient.code,'mapaCorporal');
+ }catch(error){alert('No se pudo abrir el mapa corporal: '+error.message)}finally{this.disabled=false}
+};
 document.getElementById('saveAppointmentCommentBtn').onclick=async function(){
  const a=appointments.find(x=>String(x.id)===String(selectedId));if(!a)return;
  const comment=document.getElementById('appointmentCommentInput').value.trim(),status=document.getElementById('appointmentCommentStatus'),button=this;
@@ -6348,5 +6359,6 @@ window.addEventListener('message',event=>{if(event.data?.type!=='atlas:open-qual
  apply();
 })();
 </script>
+<script src="../appointment-duplicates.js?v=1"></script>
 </body></html>
 
