@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.join(__dirname,'..');
+const shell=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const agenda=fs.readFileSync(path.join(root,'modules/agenda.html'),'utf8');
+const ficha=fs.readFileSync(path.join(root,'modules/ficha.html'),'utf8');
+assert.match(shell,/internalTasks:list','internalTasks:assignees','internalTasks:create','internalTasks:update/);
+assert.match(shell,/db\.rpc\('atlas_chat_directory'/);
+assert.match(shell,/m\.action==='internalTasks:assignees'\)result=await taskDirectory\(\)/);
+assert.match(shell,/assigned_name:assigned\.name\|\|String\(p\.assignedName/);
+assert.match(shell,/!?\['internalTasks:list','internalTasks:assignees'\]\.includes\(m\.action\)/);
+assert.match(agenda,/id="atlasTaskAssigned"><option value="">Sin asignar/);
+assert.match(agenda,/taskAreaSelect\.onchange=\(\)=>refreshTaskAssigneeOptions/);
+assert.match(agenda,/payload\.assignedTo=taskAssigneeSelect\.value\|\|null/);
+assert.match(ficha,/id="pcTaskAssigneeWrap" hidden/);
+assert.match(ficha,/request\('internalTasks:assignees'\)/);
+assert.match(ficha,/channel\?\.value==='task'\|\|!!due\?\.value/);
+assert.match(ficha,/sourceLabel:'atlas-patient-record',\.\.\.assignment/);
+assert.match(ficha,/Responsable: '\+esc\(row\.assigned_display_name\|\|row\.assigned_name\)/);
+console.log('Selector individual validado en Tareas y Comunicaciones; la lista de equipo es clínica y la asignación se valida en servidor.');
+

@@ -370,16 +370,16 @@ loadAll(()=>db.from('patient_debts').select('patient_id,amount_remaining,is_sett
         :{p_patient_id:patientId,p_reference_date:referenceDate,p_overwrite_manual:Boolean(p.overwriteManual)};
       result=await db.rpc(rpc,args);
     }
-    else if(['internalTasks:list','internalTasks:create','internalTasks:update'].includes(m.action)){
+    else if(['internalTasks:list','internalTasks:assignees','internalTasks:create','internalTasks:update'].includes(m.action)){
       const capture=document.getElementById('atlasCaptureFrame'),agenda=document.getElementById('agendaFrame'),ficha=document.getElementById('fichaFrame');
       const fromCapture=e.source===capture?.contentWindow&&e.origin==='https://atlas-alicante.evenso.es';
       const fromAgenda=e.source===agenda?.contentWindow&&e.origin===location.origin;
       const fromFicha=e.source===ficha?.contentWindow&&e.origin===location.origin;
       if(!fromCapture&&!fromAgenda&&!fromFicha)throw new Error('Origen de tareas no autorizado.');
       const scoped=q=>q.eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId),p=m.payload||{},taskTypes=['recepcion','seguimiento','llamada','whatsapp','aviso','otro'],taskStatuses=['pending','in_progress','completed','snoozed','cancelled'],taskAreas=['fisio','recepcion','auxiliar'];
-      const validateAssigned=async value=>{if(!value)return {data:null,error:null};const member=await db.from('memberships').select('user_id').eq('organization_id',context.organizationId).eq('user_id',value).eq('active',true).or(`clinic_id.is.null,clinic_id.eq.${context.clinicId}`).limit(1).maybeSingle();return member.data?{data:value,error:null}:{data:null,error:{message:'La persona asignada no pertenece a esta clínica.'}}};
+      const taskDirectory=async()=>{const directory=await db.rpc('atlas_chat_directory',{p_organization_id:context.organizationId,p_clinic_id:context.clinicId});if(directory.error)return directory;const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),areaFor=value=>{const role=normalize(value);if(role.includes('fisio')||role.includes('physio')||role.includes('therap')||role==='professional')return 'fisio';if(role.includes('recepcion')||role.includes('reception'))return 'recepcion';if(role.includes('gestion')||role.includes('management')||role.includes('administr')||role==='owner'||role==='administrator')return 'gestion';if(role.includes('auxiliar')||role.includes('assistant')||role==='auxiliary')return 'auxiliar';return null};return {data:(directory.data||[]).flatMap(member=>{const name=String(member.full_name||'').trim(),area=areaFor(member.role);return name&&area?[{userId:String(member.user_id),name,area}]:[]}),error:null}};const validateAssigned=async value=>{if(!value)return {data:null,error:null,name:null};const roster=await taskDirectory();if(roster.error)return roster;const member=(roster.data||[]).find(person=>person.userId===String(value));return member?{data:value,error:null,name:member.name}:{data:null,error:{message:'La persona asignada no pertenece a esta clínica.'}}};
       const validatePatient=async value=>{if(!value)return {data:null,error:null};const patient=await scoped(db.from('patients').select('id')).eq('id',value).is('deleted_at',null).maybeSingle();return patient.data?{data:patient.data.id,error:null}:{data:null,error:{message:'El paciente no pertenece a esta clínica.'}}};
-      if(m.action==='internalTasks:list'){
+      if(m.action==='internalTasks:assignees')result=await taskDirectory();else if(m.action==='internalTasks:list'){
         let taskQuery=scoped(db.from('atlas_internal_tasks').select('*'));if(p.patientId)taskQuery=taskQuery.eq('patient_id',p.patientId);const tasks=await taskQuery.order('status',{ascending:true}).order('due_at',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false}).limit(1000);
         if(tasks.error)result=tasks;
         else{
@@ -404,7 +404,7 @@ loadAll(()=>db.from('patient_debts').select('patient_id,amount_remaining,is_sett
           const [assigned,patient]=await Promise.all([validateAssigned(p.assignedTo),validatePatient(p.patientId)]);
           if(assigned.error)result=assigned;else if(patient.error)result=patient;
           else{
-            const row={organization_id:context.organizationId,clinic_id:context.clinicId,patient_id:patient.data,lead_id:p.leadId||null,source_appointment_id:p.sourceAppointmentId||null,source_label:sourceLabel||null,area,title,task_type:type,notes:String(p.notes||'').trim()||null,due_at:dueAt?dueAt.toISOString():null,assigned_to:assigned.data,assigned_name:String(p.assignedName||'').trim()||null,status,completed_at:status==='completed'?new Date().toISOString():null,created_by:context.userId,updated_by:context.userId};
+            const row={organization_id:context.organizationId,clinic_id:context.clinicId,patient_id:patient.data,lead_id:p.leadId||null,source_appointment_id:p.sourceAppointmentId||null,source_label:sourceLabel||null,area,title,task_type:type,notes:String(p.notes||'').trim()||null,due_at:dueAt?dueAt.toISOString():null,assigned_to:assigned.data,assigned_name:assigned.name||String(p.assignedName||'').trim()||null,status,completed_at:status==='completed'?new Date().toISOString():null,created_by:context.userId,updated_by:context.userId};
             result=await db.from('atlas_internal_tasks').insert(row).select('*').single();
           }
         }
@@ -421,7 +421,7 @@ loadAll(()=>db.from('patient_debts').select('patient_id,amount_remaining,is_sett
           if(changes.dueAt!==undefined){const due=changes.dueAt?new Date(changes.dueAt):null;if(changes.dueAt&&(!due||Number.isNaN(due.getTime())))throw new Error('Fecha de tarea no válida.');row.due_at=due?due.toISOString():null}
           if(changes.assignedName!==undefined)row.assigned_name=String(changes.assignedName||'').trim()||null;
           if(changes.patientId!==undefined){const patient=await validatePatient(changes.patientId);if(patient.error)result=patient;else row.patient_id=patient.data}
-          if(changes.assignedTo!==undefined){const assigned=await validateAssigned(changes.assignedTo);if(assigned.error)result=assigned;else row.assigned_to=assigned.data}
+          if(changes.assignedTo!==undefined){const assigned=await validateAssigned(changes.assignedTo);if(assigned.error)result=assigned;else{row.assigned_to=assigned.data;if(assigned.data&&assigned.name)row.assigned_name=assigned.name}}
           if(changes.status!==undefined){if(!taskStatuses.includes(changes.status))throw new Error('Estado de tarea no válido.');row.status=changes.status;row.completed_at=changes.status==='completed'?new Date().toISOString():null}
           if(!result){row.updated_by=context.userId;row.updated_at=new Date().toISOString();result=await db.from('atlas_internal_tasks').update(row).eq('id',p.id).eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).select('*').single()}
         }
@@ -724,7 +724,7 @@ loadAll(()=>db.from('patient_debts').select('patient_id,amount_remaining,is_sett
     if(/^(budgets|payments|invoices):/.test(String(m.action||''))&&!['budgets:list','payments:list','invoices:listForPayments'].includes(m.action))clearPatientReadCache();
     if(String(m.action||'').startsWith('appointments:')&&m.action!=='appointments:list'&&m.action!=='appointments:listForPatient')appointmentListCache.clear();
     if(String(m.action||'').startsWith('settings:')&&m.action!=='settings:list')agendaFrame.contentWindow?.postMessage({type:'atlas:central-settings-changed'},'*');
-    const internalTaskChanged=String(m.action||'').startsWith('internalTasks:')&&m.action!=='internalTasks:list';
+    const internalTaskChanged=String(m.action||'').startsWith('internalTasks:')&&!['internalTasks:list','internalTasks:assignees'].includes(m.action);
     const patientTaskChanged=m.action==='communications:create'||m.action==='communications:update'||m.action==='communications:complete';
     if(internalTaskChanged||patientTaskChanged)[agendaFrame,fichaFrame].forEach(frame=>frame.contentWindow?.postMessage({type:'atlas:central-internal-tasks-changed'},'*'));
     reply(true,result.data)
