@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>Pruebas de duplicación de citas</title>
+<style>body{font:16px system-ui;padding:24px}.modalback{display:none;position:fixed;inset:0;background:#0005;align-items:center;justify-content:center}.modalback.open{display:flex}.modal{background:white;padding:24px;max-height:90vh;overflow:auto;border-radius:14px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px}.full{grid-column:1/-1}button,input{padding:8px}.actions{display:flex;gap:12px}</style>
+<h1>Pruebas con datos ficticios</h1><button id="moveBtn">Editar cita</button><button id="duplicateAppointmentBtn" type="button">Duplicar cita</button><pre id="results"></pre>
+<script>
+const original={id:'original',centralId:'server-original',centralRef:'external-original',centralUpdatedAt:'yesterday',externalId:'koibox-id',patient:'Paciente de prueba',patientCode:'TEST',patientRemoteId:'test-patient',therapy:'Fisioterapia',services:['Fisioterapia'],resource:'Profesional de prueba',resources:['Profesional de prueba'],professional:'Profesional de prueba',therapists:{Fisioterapia:'Profesional de prueba'},date:'2026-11-16',time:'16:00',duration:30,notes:'Observación de prueba',status:'Realizada',paymentStatus:'Cobrado',centralPaymentId:'payment-original',planId:'plan-original',cancelReason:'old',appointmentReminder:{confirmed:true},history:[{action:'original'}]};
+let appointments=[original],selectedId=original.id,fail=false,calls=0;
+const server=new Map(),snapshot=JSON.stringify(original);
+function mins(time){return Number(time.slice(0,2))*60+Number(time.slice(3,5))}
+function timeStr(n){return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}
+function professionalActiveOn(){return true}function blockFor(){return null}function appointmentWithinAllTherapistSchedules(){return {ok:true}}
+function conflictsInSet(a,rows){return rows.filter(b=>b.date===a.date&&b.time===a.time)}
+function agendaActorName(){return 'Pruebas'}function logAgenda(){}function save(){}function render(){}
+window.atlasPersistAppointmentCentral=async a=>{calls++;if(!server.has(a.id))server.set(a.id,'server-'+a.id);if(fail&&calls===2)throw new Error('Respuesta perdida simulada');a.centralId=server.get(a.id);a.centralRef='atlas-'+a.id;};
+</script>
+<script src="../appointment-duplicates.js"></script>
+<script>
+(async()=>{
+ const output=document.getElementById('results'),passed=[];
+ function check(value,label){if(!value)throw new Error(label);passed.push('✓ '+label);output.textContent=passed.join('\n')}
+ const button=document.getElementById('duplicateAppointmentBtn'),form=document.querySelector('form'),rows=document.getElementById('duplicateRows');
+ const submit=()=>form.onsubmit({preventDefault(){}});
+ button.click();check(rows.children.length===1&&rows.querySelector('[data-time]').value==='16:00','Hora original preseleccionada');
+ document.getElementById('duplicateAdd').click();rows.children[1].querySelector('[data-time]').value='17:00';
+ await submit();check(appointments.length===3&&server.size===2,'Dos fechas crean dos registros independientes');
+ check(appointments[1].date==='2026-11-17'&&appointments[2].date==='2026-11-18'&&appointments[2].time==='17:00','Fecha y hora independientes por copia');
+ check(JSON.stringify(original)===snapshot,'Cita original intacta');
+ check(appointments.slice(1).every(a=>a.patientCode===original.patientCode&&a.professional===original.professional&&a.duration===original.duration&&a.notes===original.notes),'Paciente, fisioterapeuta, duración y observaciones conservados');
+ check(appointments.slice(1).every(a=>a.status==='Pendiente'&&!a.externalId&&!a.centralPaymentId&&!a.planId&&!a.appointmentReminder&&a.centralId!==original.centralId),'Sin vínculos de cobro, cancelación, confirmación ni identidad original');
+ appointments[1].services.push('Solo copia');appointments[1].therapists.Fisioterapia='Otro profesional';appointments[1].status='Cancelada';
+ check(JSON.stringify(original)===snapshot&&appointments[2].status==='Pendiente'&&appointments[2].services.length===1,'Editar y cancelar una copia no afecta a las demás');
+ document.getElementById('duplicateClose').click();button.click();rows.querySelector('[data-date]').value=original.date;await submit();check(server.size===2,'Se rechaza repetir la fecha original');
+ rows.querySelector('[data-date]').value='2026-11-20';document.getElementById('duplicateAdd').click();rows.children[1].querySelector('[data-date]').value='2026-11-20';await submit();check(server.size===2,'Se rechazan días duplicados en la selección');
+ rows.children[1].querySelector('[data-date]').value='2026-11-21';fail=true;calls=0;await submit();
+ check(appointments.length===4&&rows.children[0].dataset.saved==='true'&&!rows.children[1].dataset.saved,'Fallo parcial conserva las copias ya confirmadas');
+ const retryId=rows.children[1].dataset.copyId;fail=false;await submit();
+ check(appointments.length===5&&server.size===4&&appointments[4].id===retryId,'Reintento reutiliza el identificador sin crear citas adicionales');
+ check(JSON.stringify(original)===snapshot,'Original intacta después de errores y reintentos');
+ document.getElementById('duplicateClose').click();output.textContent+='\nTODAS LAS PRUEBAS CORRECTAS';
+})().catch(error=>{document.getElementById('results').textContent+='\nFALLO: '+error.stack});
+</script>
