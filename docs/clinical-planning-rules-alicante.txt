@@ -1,0 +1,50 @@
+PLANIFICACIÓN DE ALICANTE — reglas confirmadas el 18/11/2026
+
+Las reglas se aplican a los profesionales seleccionados en cada plan, con
+sus competencias, estado activo y horarios. No están vinculadas a nombres
+de Murcia y no se importan autorizaciones individuales de aquella clínica.
+
+Sesiones manuales:
+- Por defecto, Fisioavanzada/Fisioterapia + Neuromodulación + Osteopatía se
+  reservan en una cita de 60 minutos con el profesional elegido.
+- Solo en Alicante puede elegirse expresamente la modalidad dividida:
+  Fisioavanzada 30 minutos con su profesional específico, seguida de
+  Neuromodulación + Osteopatía juntas 45 minutos con el principal elegido.
+  Se admiten profesionales distintos. Cambiar los nombres no activa por sí
+  solo la división. La modalidad y ambas selecciones quedan en el plan.
+  Si falta una selección, autorización o hueco, no se divide automáticamente
+  ni se sustituye a nadie. La aprobación comprueba modalidad, tiempos y orden.
+- Readaptación va antes de las sesiones manuales del mismo día.
+- Readaptación + iMoove, cuando ambos están prescritos y autorizados y existe
+  el equipo, forman una cita de 45 minutos con el readaptador elegido.
+  No se crean equipos ni autorizaciones que falten en la configuración.
+- Se priorizan citas seguidas y se permite como máximo una espera de hasta
+  15 minutos por día. No se proponen visitas aisladas de 15 minutos.
+- Camilla y Tracción (equivalente al Robot de Murcia) empiezan desde el día
+  15 del tratamiento: inicio +14 días, también para inicios entre semana.
+- Alicante no dispone de PhysicalM: no se planifica ninguna variante, aunque
+  figure en un presupuesto antiguo. Queda pendiente y se señala para revisión;
+  no se borra del presupuesto ni se sustituye por otra terapia.
+
+Se conservan las reglas locales de MBST, equipos, horarios, competencias y
+duraciones. Tracción conserva 30 minutos de equipo y 5 de atención profesional;
+no se cambia a los tiempos de Robot de Murcia. Sin PhysicalM se conserva
+ondas después de las sesiones manuales. Los grupos de sesiones se colocan
+completos y las cantidades incompatibles quedan pendientes, sin inventarlas.
+
+La revisión previa a aprobar comprueba también las citas existentes del
+paciente, los tiempos, profesionales, recursos, cantidades, esperas y ausencia
+de PhysicalM. El borrador muestra el resumen de sesiones por terapia.
+No se aplica ninguna cita sin la aprobación expresa de recepción.
+
+Pruebas: tests/planning-all-professionals.cjs y su prueba visual. Ejecutan el
+planificador y las funciones reales de competencias con configuración y
+pacientes ficticios, varios profesionales elegidos, modo unido y dividido,
+falta de competencia/horario/equipo, cantidades desiguales, esperas, visitas
+cortas, días 14/15, Robot→Tracción, MBST y rechazo de aprobación incorrecta.
+La prueba visual usa Chrome con toda la red bloqueada y prueba también el
+selector de modalidad y la conservación de las opciones en el plan.
+
+Después de publicar: cerrar el borrador anterior con Volver sin aplicar,
+recargar ATLAS y calcular una propuesta nueva. No se modifican citas ni
+presupuestos ya guardados ni se aplica un plan real durante estas pruebas.
