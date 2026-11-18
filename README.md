@@ -26,3 +26,7 @@ This repository is a snapshot of the currently served static files, not the orig
 - La carpeta raíz contiene los archivos estáticos servidos por GitHub Pages. La publicación debe hacerse mediante una solicitud revisada y fusionada en `main`; antes de fusionar, el propietario debe confirmar que GitHub Pages sigue configurado para publicar desde `main` y la raíz. No se usa IONOS para subir los archivos del sitio.
 - Para restaurar una versión, se revierte en GitHub el commit de publicación correspondiente y se fusiona esa reversión en `main`; se comprueba después el sitio publicado. No se restauran archivos a mano desde un navegador.
 - La prueba sintética de ventas de esta propuesta está en `tests/direct-sale-payments.cjs`. Requiere Node.js, Playwright y Chrome disponibles localmente; no accede a servicios ni datos reales.
+
+## Planificación clínica
+
+Antes de modificar el cálculo o la revisión de propuestas, consultar `docs/clinical-planning-rules-alicante.txt`. Se aplican a cualquier profesional elegido y autorizado: sin PhysicalM, Robot se denomina Tracción y la división 30+45 minutos requiere elegirla expresamente. Mantener la verificación al calcular y antes de aprobar; no importar perfiles ni autorizaciones de Murcia.
