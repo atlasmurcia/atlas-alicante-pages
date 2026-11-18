@@ -1,0 +1,112 @@
+diff --git a/whatsapp-webhook/index.ts b/whatsapp-webhook/index.ts
+index dd707c3..f2e0a83 100644
+--- a/whatsapp-webhook/index.ts
++++ b/whatsapp-webhook/index.ts
+@@ -1,3 +1,4 @@
++import { handleReceptionCancellation, hasPendingReceptionCancellation, isNewReceptionMessage } from "./cancellation-reception.mjs";
+ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+ import { enrollCtwaAiLead, persistCtwaAttribution } from "./ctwa-attribution.mjs";
+ import aiConfig from "./instructions.json" with { type: "json" };
+@@ -554,77 +555,6 @@ async function ensureCancellationLead(connection: any, patient: any, reason: str
+   return created.data;
+ }
+ 
+-async function handleInboundCancellationRequest(connection: any, conversation: any, inbound: any) {
+-  if (connection.clinic_id !== CLINIC) return false;
+-  const text = textReply(inbound), normalized = normalizedReply(text);
+-  if (!isExplicitCancellationRequest(normalized)) return false;
+-  const rebook = conversation.metadata?.rebook;
+-  if (rebook?.state && rebook.state !== "closed" && (!rebook.expiresAt || new Date(rebook.expiresAt).getTime() >= Date.now())) return false;
+-
+-  const patient = await cancellationPatient(connection, conversation);
+-  if (!patient) {
+-    await createCancellationReceptionTask(connection, conversation, null, null, text, inbound.id);
+-    await sendText(connection, conversation, "He avisado a recepción de que quieres cancelar la cita. Como no he podido identificarla con total seguridad, la revisarán y te confirmarán la anulación. Gracias por avisarnos.");
+-    return true;
+-  }
+-
+-  const alreadyProcessed = await db.from("patient_communications").select("id").eq("clinic_id", connection.clinic_id).eq("patient_id", patient.id).contains("metadata", { workflow: "whatsapp_inbound_cancellation", inbound_message_id: inbound.id }).is("deleted_at", null).limit(1).maybeSingle();
+-  if (alreadyProcessed.error) throw alreadyProcessed.error;
+-  if (alreadyProcessed.data) return true;
+-
+-  const now = new Date().toISOString();
+-  const appointments = await db.from("appointments").select("*").eq("clinic_id", connection.clinic_id).eq("patient_id", patient.id).is("deleted_at", null).gt("starts_at", now).not("status", "in", "(cancelled,Cancelada,completed,Completada)").order("starts_at", { ascending: true }).limit(50);
+-  if (appointments.error) throw appointments.error;
+-  const active = appointments.data || [];
+-  if (!active.length) {
+-    await createCancellationReceptionTask(connection, conversation, patient, null, text, inbound.id);
+-    await db.from("patient_communications").insert({ organization_id: connection.organization_id, clinic_id: connection.clinic_id, patient_id: patient.id, channel: "whatsapp", direction: "internal", summary: "Solicitud de cancelación sin cita futura identificada", outcome: "Pendiente de recepción", metadata: { workflow: "whatsapp_inbound_cancellation", inbound_message_id: inbound.id, original_text: text } });
+-    await sendText(connection, conversation, `Gracias por avisarnos, ${patient.first_name || ""}. He informado a recepción para que revisen la cancelación y te la confirmen.`);
+-    return true;
+-  }
+-
+-  let target = null;
+-  const contextId = String(inbound?.payload?.context?.id || "").trim();
+-  if (contextId) {
+-    const job = await db.from("appointment_reminder_jobs").select("appointment_id").eq("clinic_id", connection.clinic_id).eq("patient_id", patient.id).eq("provider_message_id", contextId).maybeSingle();
+-    if (job.error) throw job.error;
+-    target = active.find((appointment: any) => appointment.id === job.data?.appointment_id) || null;
+-  }
+-  if (!target) {
+-    const recentJob = await db.from("appointment_reminder_jobs").select("appointment_id,sent_at").eq("clinic_id", connection.clinic_id).eq("patient_id", patient.id).eq("phone", normalizePhone(conversation.contact_phone)).eq("status", "sent").gte("sent_at", new Date(Date.now() - 30 * 86400000).toISOString()).order("sent_at", { ascending: false }).limit(1).maybeSingle();
+-    if (recentJob.error) throw recentJob.error;
+-    target = active.find((appointment: any) => appointment.id === recentJob.data?.appointment_id) || null;
+-  }
+-  if (!target) {
+-    const dates = [...new Set(active.map((appointment: any) => madridDate(appointment.starts_at)))];
+-    if (dates.length === 1) target = active[0];
+-  }
+-  if (!target) {
+-    await createCancellationReceptionTask(connection, conversation, patient, null, text, inbound.id);
+-    await db.from("patient_communications").insert({ organization_id: connection.organization_id, clinic_id: connection.clinic_id, patient_id: patient.id, channel: "whatsapp", direction: "internal", summary: "Solicitud de cancelación con varias citas futuras", outcome: "Pendiente de aclaración", metadata: { workflow: "whatsapp_inbound_cancellation", inbound_message_id: inbound.id, original_text: text, candidate_appointment_ids: active.map((appointment: any) => appointment.id) } });
+-    await sendText(connection, conversation, `Veo que tienes varias citas pendientes, ${patient.first_name || ""}. Para no cancelar la equivocada, dime qué día y hora quieres anular. También he avisado a recepción.`);
+-    return true;
+-  }
+-
+-  const metadata = target.metadata || {}, history = Array.isArray(metadata.history) ? metadata.history : [];
+-  const cancelledMetadata = { ...metadata, status: "Cancelada", cancelledAt: now, cancelledBy: "Paciente · WhatsApp", cancelReason: text.slice(0, 500), history: [...history, { at: now, user: "Paciente por WhatsApp", action: "Cancelada por Paciente · WhatsApp" }] };
+-  const cancelled = await db.from("appointments").update({ status: "cancelled", cancellation_reason: text.slice(0, 500), metadata: cancelledMetadata, updated_at: now }).eq("id", target.id).eq("clinic_id", connection.clinic_id).is("deleted_at", null).not("status", "in", "(cancelled,Cancelada)").select("id,starts_at").maybeSingle();
+-  if (cancelled.error) throw cancelled.error;
+-  if (!cancelled.data) return true;
+-  const jobs = await db.from("appointment_reminder_jobs").update({ status: "cancelled", error_message: "Cita cancelada por el paciente vía WhatsApp", updated_at: now }).eq("clinic_id", connection.clinic_id).eq("appointment_id", target.id).in("status", ["queued", "sending"]);
+-  if (jobs.error) throw jobs.error;
+-
+-  const lead = await ensureCancellationLead(connection, patient, text);
+-  await createCancellationReceptionTask(connection, conversation, patient, target, text, inbound.id);
+-  const communication = await db.from("patient_communications").insert({ organization_id: connection.organization_id, clinic_id: connection.clinic_id, patient_id: patient.id, channel: "whatsapp", direction: "internal", summary: "Cita cancelada automáticamente por solicitud del paciente", outcome: "Cancelada y comunicada a recepción", completed_at: now, metadata: { workflow: "whatsapp_inbound_cancellation", inbound_message_id: inbound.id, appointment_id: target.id, lead_id: lead.id, original_text: text } });
+-  if (communication.error) throw communication.error;
+-  const conversationMetadata = { ...(conversation.metadata || {}), source: "whatsapp_appointment_reminders", rebook: { state: "awaiting_rebook", appointmentId: target.id, appointmentIds: [target.id], leadId: lead.id, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString() } };
+-  const updatedConversation = await db.from("whatsapp_conversations").update({ patient_id: patient.id, metadata: conversationMetadata, updated_at: now }).eq("id", conversation.id);
+-  if (updatedConversation.error) throw updatedConversation.error;
+-  await sendText(connection, conversation, `Gracias por avisarnos, ${patient.first_name || ""} 😊. Hemos cancelado tu cita del ${appointmentLabel(target.starts_at)} en FisioSport Alicante y recepción ha quedado informada.\n\n¿Quieres que te busquemos otra cita? Responde REAGENDAR. Si por ahora no quieres otra cita, responde NO.`);
+-  return true;
+-}
+-
+ async function handleCancellationRebook(connection: any, conversation: any, inbound: any) {
+   const context = conversation.metadata?.rebook; if (!context || context.expiresAt && new Date(context.expiresAt).getTime() < Date.now()) return;
+   const text = textReply(inbound), normalized = normalizedReply(text); if (!normalized) return;
+@@ -735,7 +665,7 @@ async function handleReminderConfirmation(connection: any, conversation: any, in
+       if (createdTask.error) throw createdTask.error;
+     }
+   } else {
+-    const closedTasks = await db.from("atlas_internal_tasks").update({ status: "completed", completed_at: now, updated_at: now }).eq("clinic_id", connection.clinic_id).eq("source_appointment_id", firstAppointment.id).eq("area", "recepcion").in("status", ["pending", "in_progress", "snoozed"]);
++    const closedTasks = await db.from("atlas_internal_tasks").update({ status: "completed", completed_at: now, updated_at: now }).eq("clinic_id", connection.clinic_id).eq("source_appointment_id", firstAppointment.id).eq("area", "recepcion").eq("source_label", "WhatsApp · recordatorio de cita").in("status", ["pending", "in_progress", "snoozed"]);
+     if (closedTasks.error) throw closedTasks.error;
+   }
+   const labels = responded.map((appointment: any) => appointmentLabel(appointment.starts_at));
+@@ -1220,11 +1150,14 @@ Deno.serve(async (req) => {
+       }
+       const saved = await saveInbound(connection, value, message);
+       if (REMINDER_CLINICS.has(connection.clinic_id) && saved?.message) {
++        if (!isNewReceptionMessage(saved.message)) continue;
++        if (await handleReceptionCancellation({ db, connection, conversation: saved.conversation, inbound: saved.message })) continue;
++        if (await hasPendingReceptionCancellation({ db, connection, conversation: saved.conversation })) continue;
+         if (connection.clinic_id === MURCIA_CLINIC) {
+           await handleReminderConfirmation(connection, saved.conversation, saved.message);
+           continue;
+         }
+-        const handledCancellation = await handleInboundCancellationRequest(connection, saved.conversation, saved.message);
++        const handledCancellation = false; // Cancellation is handled before all confirmation/rebooking routes.
+         const handledMurciaPreference = handledCancellation ? false : await handleLiveMurciaPreference(connection, saved.conversation, saved.message);
+         const handledLiveButton = handledCancellation || handledMurciaPreference ? true : await handleLivePilotButton(connection, saved.conversation, saved.message, message);
+         if (!handledCancellation && !handledMurciaPreference && !handledLiveButton) {
