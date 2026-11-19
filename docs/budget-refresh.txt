@@ -1,0 +1,51 @@
+Alicante — actualización de presupuestos entre equipos, 19/11/2026
+
+Problema y alcance
+Una ficha abierta antes de guardar el presupuesto en otro equipo podía seguir
+mostrando el borrador inicial vacío. El sondeo central comprobaba citas,
+configuración y facturas, pero no presupuestos. El aviso de presupuesto
+actualizado solo se enviaba dentro de la ventana que había hecho la escritura.
+Los errores de carga se escribían en la consola, sin aviso visible en el listado.
+Se reproduce esta carencia con una clínica vacía y un presupuesto ficticio
+guardado después de abrir su ficha. Esto no demuestra una pérdida histórica
+de datos ni permite reconstruir el instante de cada clic en la sesión clínica.
+
+Corrección
+- El sondeo existente de 30 s incluye la última revisión de presupuestos de la
+  clínica y organización autenticadas: solo id, updated_at y deleted_at.
+  Detecta también el primer presupuesto tras una respuesta vacía y no avisa
+  cuando la revisión sigue igual. No cambia la configuración de Realtime.
+- Al volver a la aplicación o recuperar conexión se actualiza la ficha abierta.
+- Botón Actualizar presupuestos y estados visibles: consultando, actualizado,
+  sin presupuestos centrales, cambios pendientes y error con posibilidad de
+  reintentar. La consulta expresa no reutiliza una lectura antigua de la caché.
+- La carga respeta la edición y los envíos pendientes. Evita cargas simultáneas,
+  retiene una actualización solicitada durante una consulta lenta e ignora las
+  respuestas del paciente anterior. Conserva la selección y los campos originales.
+- Los presupuestos confirmados retirados en otro equipo se retiran de la copia
+  visible, sin convertirlos en nuevos borradores. Se mantienen borradores locales
+  todavía sin confirmar. Actualizar no escribe presupuestos en el servidor.
+
+Solo interfaz y lecturas existentes. No modifica conceptos, precios, descuentos,
+cobros, citas, datos clínicos, roles, permisos, proyectos ni funciones de servidor.
+Portada v233 y Ficha v123. Conserva los cambios previos de desplazamiento y color
+de los nombres. Murcia no cambia. No añade configuración de despliegue de Sites.
+
+Validación
+node tests/budget-refresh.cjs
+17 escenarios sintéticos, reproducción del fallo anterior y sintaxis de todos
+los scripts incluidos en los dos HTML modificados.
+
+node tests/budget-refresh-screen.cjs
+Requiere Playwright y Chrome; ATLAS_CHROME_EXECUTABLE permite elegir el binario.
+Usa la ficha completa y el sondeo/lectura de presupuestos del código real con
+un servidor simulado. Verifica guardado externo posterior a la apertura,
+conceptos, importe, profesional, edición pendiente, error/reintento y retorno
+a la aplicación. Red externa bloqueada, cero errores de JavaScript y cero
+mutaciones. ATLAS_BUDGET_ASSET_ROOT permite usar una copia de los auxiliares
+del repositorio y ATLAS_BUDGET_SCREENSHOT_DIR el destino de las capturas.
+
+No se han guardado datos ni capturas de pacientes reales en estos archivos.
+La corrección preparada no está publicada hasta autorizar y verificar el
+despliegue clínico. La sesión real posterior al despliegue debe cargar esta
+versión mediante recarga de la aplicación, conservando antes lo pendiente.
