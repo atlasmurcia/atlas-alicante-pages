@@ -701,6 +701,9 @@ totalsOnly?Promise.resolve({data:[],error:null}):loadAll(()=>db.from('patient_de
     else if(m.action==='signatures:list'){result=await db.from('professional_signatures').select('professional_name,signature_data,auto_apply,updated_at').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).order('professional_name')}
     else if(m.action==='signatures:upsert'){const payload={organization_id:context.organizationId,clinic_id:context.clinicId,professional_name:m.payload?.professionalName,signature_data:m.payload?.signatureData,auto_apply:m.payload?.autoApply!==false,updated_by:context.userId,updated_at:new Date().toISOString()};result=await db.from('professional_signatures').upsert(payload,{onConflict:'organization_id,clinic_id,professional_name'}).select().single()}
     else if(m.action==='attendance:get'||m.action==='attendance:save'){
+      // Compare the Madrid representation used by the clock without rewriting stored hours.
+      const attendanceTime=value=>{if(!value)return'';const text=String(value);if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text))return text.replace(/\.\d+$/,'').slice(0,19);const date=new Date(text);if(Number.isNaN(date.getTime()))return text;const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date).reduce((result,part)=>(result[part.type]=part.value,result),{});return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`};
+      const comparableEntry=entry=>entry?{...entry,entryAt:attendanceTime(entry.entryAt),exitAt:attendanceTime(entry.exitAt)}:entry;
       const old=await db.from('clinic_settings').select('payload,updated_at').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).eq('section','other').maybeSingle();if(old.error)throw old.error;
       const legacy=old.data?.payload?.attendance||{entries:[],absences:[]},entryMap=new Map((legacy.entries||[]).map(e=>[String(e.id),e]));
       for(let offset=0;;offset+=1000){const page=await db.from('attendance_entries').select('payload').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).order('record_id').range(offset,offset+999);if(page.error)throw page.error;(page.data||[]).forEach(r=>entryMap.set(String(r.payload.id),r.payload));if((page.data||[]).length<1000)break}
@@ -708,11 +711,11 @@ totalsOnly?Promise.resolve({data:[],error:null}):loadAll(()=>db.from('patient_de
         const incoming=m.payload?.attendance||{},canManage=context.ownerAccess||context.managementAccess||['owner','administrator'].includes(context.role),changes=[];
         for(const submitted of incoming.entries||[]){
           const prior=entryMap.get(String(submitted.id));
-          if(JSON.stringify(submitted)===JSON.stringify(prior))continue;
+          if(JSON.stringify(comparableEntry(submitted))===JSON.stringify(comparableEntry(prior)))continue;
           if(submitted.selfClock===true&&submitted.employee!==context.profileName)throw new Error('El fichaje no coincide con la cuenta que ha iniciado sesión. Actualiza ATLAS y vuelve a intentarlo.');
           if(!canManage&&(submitted.historical||submitted.employee!==context.profileName||(prior&&prior.employee!==context.profileName)))throw new Error('Solo puedes registrar el fichaje de tu propia cuenta.');
-          const changedStart=!!prior&&submitted.entryAt!==prior.entryAt;
-          const changedExit=!!prior&&(submitted.exitAt||'')!==(prior.exitAt||'');
+          const changedStart=!!prior&&attendanceTime(submitted.entryAt)!==attendanceTime(prior.entryAt);
+          const changedExit=!!prior&&attendanceTime(submitted.exitAt)!==attendanceTime(prior.exitAt);
           const correction=!!prior&&(changedStart||(changedExit&&!!prior.exitAt)||!!submitted.correctionReason);
           if(!canManage&&correction)throw new Error('Solo Gestión puede corregir un fichaje existente.');
           if(!canManage&&prior&&!changedExit)continue;
