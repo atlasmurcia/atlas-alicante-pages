@@ -1103,7 +1103,7 @@ function setWaitingStatus(id,status){const item=waitingRoom.find(x=>x.id===id);i
 
 function hesc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function validPatientPhoto(value){return /^(?:data:image\/(?:jpeg|png|webp);base64,|https?:\/\/|blob:)/i.test(String(value||''))}
-function patientInvoiceAlert(patient){return Number(patient?.collectedTotal??patient?.income??0)>=1300}
+function patientInvoiceAlert(patient){return window.atlasPatientPaymentHighlight?window.atlasPatientPaymentHighlight(patient):Number(patient?.collectedTotal??patient?.income??0)>=1300}
 function patientForAppointment(appointment){return patientMaster.find(patient=>String(patient.code)===String(appointment?.patientCode||''))||patientMaster.find(patient=>normalizeSearch(patient.name)===normalizeSearch(appointment?.patient||''))}
 function patientInvoiceClassForAppointment(appointment){return patientInvoiceAlert(patientForAppointment(appointment))?'patient-invoice-alert':''}
 function patientNameColumns(full){const p=String(full||'').trim().split(/\s+/);if(p.length===1)return [p[0],'',''];if(p.length===2)return [p[0],p[1],''];return [p.slice(0,-2).join(' '),p.at(-2),p.at(-1)]}
@@ -1611,7 +1611,7 @@ function updateStats(force=false){
 }
 function openDrawer(id){
  const a=appointments.find(x=>String(x.id)===String(id));if(!a)return;selectedId=a.id;
- document.getElementById('dName').textContent=a.patient;
+ document.getElementById('dName').textContent=a.patient;document.getElementById('dName').classList.toggle('patient-invoice-alert',patientInvoiceAlert(patientForAppointment(a)));
  const ficha=linkedPatientForAppointment(a);
  const resolvingFicha=!ficha&&!!(a.patientRemoteId||a.patient_id||a.patientCode);
  if(ficha&&(!a.patientRemoteId||!a.patientCode)){
@@ -6382,7 +6382,7 @@ window.addEventListener('message',event=>{if(event.data?.type!=='atlas:open-qual
 <script src="../appointment-duplicates.js?v=1"></script>
 <script src="./appointment-service-keyboard.js?v=1"></script>
 <script src="./cancellation-reception-ui.js?v=1"></script>
-</body></html>
+<script src="./patient-payment-highlight.js?v=1"></script></body></html>
 
 
 
