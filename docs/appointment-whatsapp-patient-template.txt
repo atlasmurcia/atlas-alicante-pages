@@ -1,0 +1,41 @@
+Alicante — paciente y plantilla de WhatsApp de cita — 19/11/2026
+
+Encargo y autorización expresa de Gely para corregir los dos fallos auditados,
+subir la propuesta y publicarla como excepción a las restricciones del espacio.
+
+Antes: patientFor ignoraba el identificador vinculado y podía seleccionar a un
+homónimo si faltaba el código. localIso estaba en otro ámbito, así que fallaba
+la comprobación de asistencia previa y se utilizaba siempre primera visita.
+
+Después: prioriza patientRemoteId/patient_id, después código y solo sin ambos
+un nombre exacto único. Si falta ficha en memoria, patients:resolve por ID o
+código obtiene exclusivamente esa ficha, sin guardarla ni modificar citas.
+El teléfono procede de la misma ficha. La hora local de la cita se convierte
+a ISO dentro del propio manejador. appointments:hasPriorAttendance recibe el
+ID correcto y el instante de la cita; false prepara first, true returning.
+Si falla la consulta, se cierra la ventana vacía y se avisa, sin inventar la
+condición de primera visita. Se conserva íntegro appointment-whatsapp-copy.js.
+
+Reserva de ventana durante el clic para conservar apertura directa; protección
+contra doble clic y cambio de cita mientras se recupera información. Solo se
+prepara WhatsApp, sin enviar. Conserva registro local Preparado, sin afirmar
+entrega. No cambia cola automática, datos clínicos, permisos ni configuración.
+
+Validación: tests/appointment-whatsapp-patient-template.cjs, Chrome, agenda
+completa, datos ficticios, zona Europe/Madrid y red externa bloqueada.
+Doce combinaciones: seis estados por dos plantillas; textos exactamente iguales
+a los actuales y consulta por ID/instante correctos. Homónimos, ID sin código,
+código discordante, patient_id, consulta de ficha ausente, ID incorrecto,
+resolución rechazada, nombre ambiguo, asistencia rechazada/respuesta inesperada,
+teléfono ausente sin fallback antiguo, fecha/hora inválida, formatos de prefijo,
+selección cambiada, doble clic y ventanas bloqueadas. Sintaxis de 135 scripts.
+Pantalla de detalle revisada con paciente ficticio. Sin mensajes reales ni CRM.
+
+Limitación conocida de la versión publicada anterior, ajena a este encargo:
+un bloque posterior provoca applyRuntimeSettings is not defined. Se conserva
+registrado por la prueba y no se presenta esta corrección como solución de ese
+error. Ningún otro error de página se admite. Murcia no se modifica.
+
+Tras publicar: recargar ATLAS Alicante, Agenda v195, y comprobar el botón en el
+equipo de recepción. La entrega a WhatsApp instalado/Web no se prueba desde
+esta copia. Evidencias de ejecución y pantallas locales en audit/ (no en Git).
