@@ -37,14 +37,7 @@ AS $function$
   end)
   from info
 $function$;
-CREATE OR REPLACE FUNCTION public.atlas_resource_capacity(p_resource text)
- RETURNS integer
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'public', 'pg_temp'
-AS $function$
-  select case p_resource when 'MBST OSTEOSPIN' then 2 else 1 end;
-$function$;
+
 CREATE OR REPLACE FUNCTION public.atlas_appointment_professional_minutes(p_services jsonb, p_metadata jsonb, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone)
  RETURNS integer
  LANGUAGE plpgsql
