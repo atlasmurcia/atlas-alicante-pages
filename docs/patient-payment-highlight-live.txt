@@ -1,0 +1,37 @@
+Alicante — actualización automática del nombre rojo (19/11/2026)
+
+Corrección visual autorizada por Gely, incluida publicación como excepción a
+AGENTS.md. No se escriben pacientes, pagos, citas, presupuestos ni tarifas.
+Se conserva la regla inclusiva >= 1300 de pagos acumulados y el cálculo de
+income existente, incluido histórico y corte de migración sin duplicar.
+
+Un controlador compartido mantiene los totales en memoria independiente,
+repinta directorio, nombre de cita, detalle, cabecera y ficha ya abierta.
+Se comprueba al conectar, por eventos de pagos/caja/facturas/recuperación,
+al volver a la ventana y cada minuto mientras la pestaña de la aplicación está visible.
+La cabecera retransmite la instantánea a la ficha, también si se abre después.
+Los valores del paciente y el objeto seleccionado no se actualizan ni guardan;
+las tarifas del Club siguen usando su lógica existente.
+
+Lectura reducida de patients:list con paymentTotalsOnly: solo datos necesarios
+de pacientes y pagos, sin fotos, URLs firmadas, deudas ni nombres/datos de contacto.
+Conserva autenticación, permisos, filtros de organización y clínica y borrados.
+Lecturas paginadas completas, con orden estable. No hay migración ni cambios
+al proyecto, roles, tablas o políticas. No se accedió a pacientes reales.
+Errores: conserva el último color confirmado y reintenta en el próximo evento,
+al volver a la ventana o mediante la comprobación periódica.
+
+Validación: 183 scripts en línea y controlador válidos; 2.003 pacientes y
+2.005 pagos ficticios, tres páginas, históricos y corte, pagos cancelados,
+igualdad con cálculo previo, filtros de clínica y error de consulta.
+Renderer real del directorio, oyente original de selección y controlador real
+en portada/agenda/ficha dentro de Chrome, con conexiones externas bloqueadas.
+Umbral 1299,99 -> 1300, pacientes antiguos, ficha abierta, cabecera y cita,
+pago de presupuesto sin factura, descenso, cambio externo detectado por
+comprobación periódica, error y recuperación, cambio de paciente y ficha
+abierta posteriormente. Valores del paciente conservados, sin errores de página.
+Regresiones existentes: resumen financiero y ventas directas/pagos mixtos.
+
+Base revisada: 9c7d5a11ce269fce1027219f70aa8b08bdd5055f.
+Agenda v194, Ficha v122, controlador v1. Recargar Alicante después de publicar.
+No hay correcciones manuales ni reproceso o actualización de registros.

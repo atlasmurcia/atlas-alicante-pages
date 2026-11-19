@@ -1881,9 +1881,7 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
 })();
 </script>
 <style id="atlas-patient-invoice-alert-style">.identity h1.patient-invoice-alert{color:#b42318!important;font-weight:900!important}</style>
-<script id="atlas-patient-invoice-alert-v1">
-(()=>{const paint=patient=>setTimeout(()=>{const title=document.querySelector('.identity h1');if(!title)return;title.classList.toggle('patient-invoice-alert',Number(patient?.collectedTotal??patient?.income??0)>=1300)},0);window.addEventListener('message',event=>{const message=event.data||{};if(message.type==='atlas:load-patient'&&message.patient)paint(message.patient);if(message.type==='atlas:patient-deleted')paint(null)})})();
-</script>
+<script src="./patient-payment-highlight.js?v=1"></script>
 <style id="atlas-patient-followups-style-v1">
 #patientFollowupsModal .modalbox{width:min(980px,100%)}
 .followups-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.followups-head h2{margin:0 0 5px}
