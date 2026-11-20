@@ -7,7 +7,9 @@ let appointments=[original],selectedId=original.id,fail=false,calls=0;
 const server=new Map(),snapshot=JSON.stringify(original);
 function mins(time){return Number(time.slice(0,2))*60+Number(time.slice(3,5))}
 function timeStr(n){return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}
-function professionalActiveOn(){return true}function blockFor(){return null}function appointmentWithinAllTherapistSchedules(){return {ok:true}}
+const professionals=['Profesional de prueba'];
+function appointmentTherapists(a){return [...new Set([...Object.values(a.therapists||{}),a.professional].filter(Boolean))]}
+function blockFor(){return null}function appointmentWithinAllTherapistSchedules(){return {ok:true}}
 function conflictsInSet(a,rows){return rows.filter(b=>b.date===a.date&&b.time===a.time)}
 function agendaActorName(){return 'Pruebas'}function logAgenda(){}function save(){}function render(){}
 window.atlasPersistAppointmentCentral=async a=>{calls++;if(!server.has(a.id))server.set(a.id,'server-'+a.id);if(fail&&calls===2)throw new Error('Respuesta perdida simulada');a.centralId=server.get(a.id);a.centralRef='atlas-'+a.id;};

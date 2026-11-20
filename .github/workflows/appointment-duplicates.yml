@@ -1,0 +1,39 @@
+name: Alicante appointment duplication regression
+
+on:
+  pull_request:
+    paths:
+      - 'appointment-duplicates.js'
+      - 'modules/**'
+      - 'index.html'
+      - 'tests/appointment-duplicates*'
+      - '.github/workflows/appointment-duplicates.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'appointment-duplicates.js'
+      - 'modules/**'
+      - 'index.html'
+      - 'tests/appointment-duplicates*'
+      - '.github/workflows/appointment-duplicates.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-browser-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test tools
+        run: npm install --no-save --package-lock=false --ignore-scripts playwright@1.57.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test the actual agenda with synthetic appointments and blocked external requests
+        run: node tests/appointment-duplicates.cjs
+      - name: Check planning rules
+        run: node tests/planning-all-professionals.cjs

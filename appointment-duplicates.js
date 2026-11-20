@@ -104,7 +104,9 @@
     // Retain this ID across failed requests: server client_ref makes retries idempotent.
     row.dataset.copyId ||= 'duplicate-'+crypto.randomUUID();
     const copy=makeCopy(source,date,time,row.dataset.copyId);
-    const inactive=[copy.professional,...Object.values(copy.therapists||{}),...(copy.resources||[])].filter(name=>name&&!professionalActiveOn(name,date));
+    // Alicante's runtime list contains active staff only. Equipment resources
+    // (for example MBST) are not professionals; use the agenda's assignments.
+    const inactive=appointmentTherapists(copy).filter(name=>!professionals.includes(name));
     if(inactive.length)throw new Error(date+': profesional de baja: '+[...new Set(inactive)].join(', ')+'.');
     const blocked=blockFor(copy);
     if(blocked)throw new Error(date+': horario bloqueado. '+(blocked.reason||''));

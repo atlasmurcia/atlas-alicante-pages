@@ -48,6 +48,7 @@ const atlasLoadedModules=new Set();
 let atlasVisibleModule='';
 // Recarga del guardado completo independiente de otras versiones de módulos.
 atlasModulePaths.agenda+='&planningCommit=20261119';
+atlasModulePaths.agenda+='&appointmentCopies=20261120';
 function notifyAtlasModuleVisibility(){
  const agendaVisible=['agenda','configuration','split'].includes(atlasVisibleModule);
  if(atlasLoadedModules.has('agenda'))agendaFrame.contentWindow?.postMessage({type:'atlas:module-visibility',visible:agendaVisible},'*');
