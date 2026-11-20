@@ -1,0 +1,55 @@
+ALICANTE — duplicación de citas — 20/11/2026
+
+Base revisada: main 35e6e33b7298d1a35349d18fe80fbb534fe1d91d del repositorio
+atlasmurcia/atlas-alicante-pages. Entrada, Agenda y appointment-duplicates.js
+públicos devuelven HTTP 200 y coinciden exactamente con esa base.
+No se inició sesión clínica ni se consultó el CRM.
+
+Causa reproducida en Chrome con la Agenda completa y una cita ficticia MBST:
+professionalActiveOn is not defined. El módulo llamaba a una función ausente
+en Alicante y mezclaba equipos y profesionales en esa comprobación. Fallaba
+antes de enviar las copias al servidor. La antigua prueba HTML definía esa
+función ficticiamente, por lo que no detectaba la dependencia inexistente.
+
+Corrección:
+- Usar appointmentTherapists de la propia Agenda y comprobar la pertenencia
+  a professionals, que applyRuntimeSettings rellena solo con perfiles activos.
+- No interpretar equipos como profesionales. Una MBST sin fisioterapeuta
+  puede duplicarse; todos los terapeutas expresamente asignados se comprueban.
+- Mantener los controles de bloqueos, horarios, conflictos, confirmación de
+  guardado e identificadores estables para reintentos.
+- Renovar la referencia de caché del módulo a v2 y la de Agenda en la entrada.
+
+Prevención:
+tests/appointment-duplicates.cjs carga la Agenda real, sus scripts y diálogo
+completo en Chrome/Chromium. Solo sirve archivos locales desde un origen
+ficticio; bloquea cualquier solicitud externa y simula el guardado en memoria.
+No inventa las funciones de validación que faltaban en la prueba antigua.
+Incluye equipos sin terapeuta, profesionales activos/de baja y secundarios,
+bloqueos, horarios y excepción con motivo, conflictos, fechas repetidas,
+independencia de las copias, original intacta, fallo parcial, respuesta perdida,
+reintento con el mismo id y doble envío durante el guardado.
+También ejecuta la prueba HTML anterior de copias independientes y reintentos.
+Un flujo de GitHub Actions ejecuta esta regresión y las reglas de planificación
+en solicitudes de cambios y en main cuando cambian los archivos relacionados.
+No configura ni ejecuta despliegues y sus permisos son solo de lectura.
+
+Validación local:
+- Prueba nueva falla con el mensaje exacto del incidente sobre el código base.
+- 10 escenarios de la Agenda completa y la prueba HTML anterior superados.
+- 20 regresiones de planificación de Alicante superadas.
+- 137 scripts inline y los dos archivos de duplicación con sintaxis válida.
+- git diff --check correcto; captura con paciente ficticio revisada.
+
+Límite de la validación: el guardado del servidor se simula; no se han creado
+ni modificado citas reales. El código de partida genera además al arrancar
+un error applyRuntimeSettings is not defined en el enganche de permisos
+(línea 6397 de Agenda). Se registra por separado; esta corrección no cambia
+permisos ni ese enganche. La prueba exige ausencia de errores nuevos.
+
+Publicación autorizada expresamente por Gely el 20/11/2026 como excepción a
+AGENTS.md, limitada a subir esta corrección y publicarla en Alicante sin
+modificar citas reales. Antes de fusionar: comprobar la revisión y las pruebas
+de la solicitud de cambios. Después: verificar el despliegue y comparar los
+archivos públicos con la candidata probada. La autorización o una prueba
+correcta por sí solas no acreditan que la reparación esté publicada.
