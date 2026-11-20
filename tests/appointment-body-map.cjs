@@ -21,8 +21,8 @@ async function check(mode) {
  const pending = new Promise(resolve => { resolvePatient = resolve; });
  const button = { disabled: false }, routes = [], alerts = [], classes = new Set(['open']);
  const context = {
-  appointments: [appointment], selectedId: appointment.id,
-  document: {getElementById(id) {return id === 'openPatientBodyMapBtn' ? button : {classList: {remove(value) {classes.delete(value);}}};}},
+  atlasPatientRecordRequest:0, appointments: [appointment], selectedId: appointment.id,
+  document: {getElementById(id) {return id === 'openPatientBodyMapBtn' ? button : {classList: {contains(value){return classes.has(value);},remove(value) {classes.delete(value);}}};}},
   resolvePatientForAppointment(value) {assert.equal(value, appointment); return pending;},
   async openPatientRecord(code, panel) {routes.push({code, panel});},
   alert(message) {alerts.push(message);},
@@ -33,15 +33,17 @@ async function check(mode) {
  assert.equal(button.disabled, true, 'Waits for the patient lookup');
  assert.equal(routes.length, 0, 'Does not open a map before resolving the linked patient');
  if (mode === 'changed') context.selectedId = 'another-appointment';
+ if (mode === 'other-record') context.atlasPatientRecordRequest++;
+ if (mode === 'closed') classes.delete('open');
  resolvePatient(mode === 'missing' ? null : {code: 'TEST', remoteId: 'test-patient'});
  await operation;
  assert.equal(button.disabled, false, 'Can retry after success or failure');
  assert.deepEqual(routes, mode === 'success' ? [{code: 'TEST', panel: 'mapaCorporal'}] : []);
  assert.equal(alerts.length, mode === 'missing' ? 1 : 0);
- assert.equal(classes.has('open'), mode !== 'success', 'Only closes the correct selected appointment after resolution');
+ assert.equal(classes.has('open'), !['success','closed'].includes(mode), 'Only closes the correct selected appointment after resolution');
 }
 
 (async () => {
- await check('success'); await check('changed'); await check('missing');
+ await check('success'); await check('changed'); await check('missing'); await check('other-record'); await check('closed');
  console.log('Synthetic body-map checks passed: delayed patient loading, selection changes, failed resolution and script syntax.');
 })().catch(error => {console.error(error); process.exitCode = 1;});
