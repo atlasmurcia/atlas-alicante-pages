@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {calculateActuals,calculateCompletedActivity,resolveTargets}=require('../modules/team-goals-parent.js');
+const {calculateActuals,calculateNetRevenue,calculateCompletedActivity,resolveTargets}=require('../modules/team-goals-parent.js');
 
 const periods=['2026-11','2026-12'];
 const actuals=calculateActuals({
@@ -28,6 +28,15 @@ assert.equal(actuals['2026-11'].team_mbst_paid_sessions,250);
 assert.equal(actuals['2026-11'].team_bomba_paid_sessions,100);
 assert.equal(actuals['2026-12'].team_mbst_paid_sessions,-250);
 assert.equal(actuals['2026-12'].team_bomba_paid_sessions,-100);
+
+const netRevenue=calculateNetRevenue({periods,payments:[
+  {amount:500,status:'completed',payment_type:'charge',paid_at:'2026-11-05',deleted_at:null},
+  {amount:100,status:'completed',payment_type:'refund',paid_at:'2026-11-12',deleted_at:null},
+  {amount:50,status:'cancelled',payment_type:'charge',paid_at:'2026-11-15',cancelled_at:'2026-12-02',deleted_at:null},
+  {amount:900,status:'completed',payment_type:'charge',paid_at:'2026-11-20',deleted_at:'2026-11-21'}
+]});
+assert.equal(netRevenue['2026-11'],450);
+assert.equal(netRevenue['2026-12'],-50);
 
 const completed=calculateCompletedActivity({periods,appointments:[
   {status:'completed',starts_at:'2026-11-03T10:00:00Z',services:['Tracción'],resources:[],metadata:{}},

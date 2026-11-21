@@ -27,6 +27,17 @@
 
   function emptyActual(){return Object.fromEntries(METRICS.map(metric=>[metric.key,0]))}
 
+  function calculateNetRevenue({periods,payments}){
+    const result=Object.fromEntries((periods||[]).map(period=>[period,0]));
+    for(const payment of payments||[]){
+      if(payment.deleted_at||!['completed','cancelled','refunded'].includes(norm(payment.status)))continue;
+      const amount=Math.abs(Number(payment.amount||0));
+      if(payment.paid_at&&Object.hasOwn(result,month(payment.paid_at)))result[month(payment.paid_at)]=round(result[month(payment.paid_at)]+(norm(payment.payment_type)==='refund'?-amount:Number(payment.amount||0)));
+      if(norm(payment.payment_type)!=='refund'&&payment.cancelled_at&&Object.hasOwn(result,month(payment.cancelled_at)))result[month(payment.cancelled_at)]=round(result[month(payment.cancelled_at)]-amount);
+    }
+    return result;
+  }
+
   function calculateCompletedActivity({periods,appointments}){
     const completed=Object.fromEntries((periods||[]).map(period=>[period,emptyActual()]));
     for(const appointment of appointments||[]){
@@ -119,12 +130,12 @@
     const start=first+'-01',end=monthEnd(selected),[invoices,budgets,payments,appointments]=await Promise.all([
       loadAll(()=>db.from('sales_invoices').select('id,total,issue_date,status,original_invoice_id').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).gte('issue_date',start).lt('issue_date',end).order('issue_date',{ascending:true})),
       loadAll(()=>db.from('budgets').select('id,total,created_at').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).lt('created_at',end).order('created_at',{ascending:true})),
-      loadAll(()=>db.from('payments').select('id,budget_id,amount,status,paid_at,cancelled_at,deleted_at').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).not('budget_id','is',null).lt('paid_at',end).order('paid_at',{ascending:true})),
+      loadAll(()=>db.from('payments').select('id,budget_id,amount,status,payment_type,paid_at,cancelled_at,deleted_at').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).lt('paid_at',end).order('paid_at',{ascending:true})),
       loadAll(()=>db.from('appointments').select('id,status,starts_at,services,resources,metadata').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).eq('status','completed').gte('starts_at',start).lt('starts_at',end).order('starts_at',{ascending:true}))
     ]);
     const budgetIds=budgets.map(item=>item.id),lines=[];
     for(let offset=0;offset<budgetIds.length;offset+=100){const page=await db.from('budget_lines').select('budget_id,service_code,service_name,sessions,metadata').eq('organization_id',context.organizationId).in('budget_id',budgetIds.slice(offset,offset+100));if(page.error)throw page.error;lines.push(...(page.data||[]))}
-    const paidActuals=calculateActuals({periods,invoices,budgets,lines,payments,services:salesSetting.data?.payload?.services||[]}),completedByPeriod=calculateCompletedActivity({periods,appointments}),goalActuals=Object.fromEntries(periods.map(period=>[period,Object.fromEntries(METRICS.map(metric=>[metric.key,metric.kind==='sessions'?completedByPeriod[period][metric.key]:paidActuals[period][metric.key]]))])),targets=resolveTargets({periods,rows:targetRows,actuals:goalActuals}),currentActual=goalActuals[selected]||emptyActual(),currentPaid=paidActuals[selected]||emptyActual(),currentTarget=targets[selected]||{};
+    const paidActuals=calculateActuals({periods,invoices,budgets,lines,payments,services:salesSetting.data?.payload?.services||[]}),netRevenue=calculateNetRevenue({periods,payments}),completedByPeriod=calculateCompletedActivity({periods,appointments}),goalActuals=Object.fromEntries(periods.map(period=>[period,Object.fromEntries(METRICS.map(metric=>[metric.key,metric.kind==='sessions'?completedByPeriod[period][metric.key]:netRevenue[period]]))])),targets=resolveTargets({periods,rows:targetRows,actuals:goalActuals}),currentActual=goalActuals[selected]||emptyActual(),currentPaid=paidActuals[selected]||emptyActual(),currentTarget=targets[selected]||{};
     const metrics=Object.fromEntries(METRICS.map(metric=>{const actual=round(currentActual[metric.key]),target=currentTarget[metric.key]||{target:0,active:false,step:metric.step};return[metric.key,{actual,paid:metric.kind==='sessions'?round(currentPaid[metric.key]):null,target:round(target.target),active:target.active,step:target.step,percentage:target.active&&target.target>0?round(actual/target.target*100):null,remaining:target.active?round(Math.max(0,target.target-actual)):null,explicit:target.explicit}]}));
     const comparison=otherSetting.data?.payload?.team_goals_murcia_comparison||null;
     return{period:selected,clinic:{name:'Alicante',metrics},comparison:comparison&&comparison.period===selected?comparison:null,comparisonUpdatedAt:otherSetting.data?.updated_at||null,rule:{moneyStep:5000,sessionStep:10,paidBudgetRequired:true}};
@@ -139,6 +150,6 @@
   }
 
   root.atlasTeamGoalsList=list;root.atlasTeamGoalsSaveTargets=saveTargets;
-  root.ATLAS_TEAM_GOALS_CORE={METRICS,calculateActuals,calculateCompletedActivity,resolveTargets};
+  root.ATLAS_TEAM_GOALS_CORE={METRICS,calculateActuals,calculateNetRevenue,calculateCompletedActivity,resolveTargets};
   if(typeof module!=='undefined'&&module.exports)module.exports=root.ATLAS_TEAM_GOALS_CORE;
 })(typeof window!=='undefined'?window:globalThis);
