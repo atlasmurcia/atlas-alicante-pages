@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {calculateActuals,resolveTargets}=require('../modules/team-goals-parent.js');
+const {calculateActuals,calculateCompletedActivity,resolveTargets}=require('../modules/team-goals-parent.js');
 
 const periods=['2026-11','2026-12'];
 const actuals=calculateActuals({
@@ -28,6 +28,16 @@ assert.equal(actuals['2026-11'].team_mbst_paid_sessions,250);
 assert.equal(actuals['2026-11'].team_bomba_paid_sessions,100);
 assert.equal(actuals['2026-12'].team_mbst_paid_sessions,-250);
 assert.equal(actuals['2026-12'].team_bomba_paid_sessions,-100);
+
+const completed=calculateCompletedActivity([
+  {status:'completed',services:['Tracción'],resources:[],metadata:{}},
+  {status:'completed',services:['MBST OSTEOSPIN'],resources:[],metadata:{}},
+  {status:'completed',services:[],resources:['Bomba Diamagnética'],metadata:{}},
+  {status:'pending',services:['Tracción'],resources:[],metadata:{}}
+]);
+assert.equal(completed.team_traction_paid_sessions,1);
+assert.equal(completed.team_mbst_paid_sessions,1);
+assert.equal(completed.team_bomba_paid_sessions,1);
 
 const targets=resolveTargets({periods,actuals,rows:[
   {period:'2026-11-01',metric:'team_net_invoicing',target_value:65000,notes:'{"active":true,"step":5000}'},
