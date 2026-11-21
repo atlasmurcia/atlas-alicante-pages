@@ -27,13 +27,14 @@
 
   function emptyActual(){return Object.fromEntries(METRICS.map(metric=>[metric.key,0]))}
 
-  function calculateCompletedActivity(appointments){
-    const completed=emptyActual();
+  function calculateCompletedActivity({periods,appointments}){
+    const completed=Object.fromEntries((periods||[]).map(period=>[period,emptyActual()]));
     for(const appointment of appointments||[]){
       if(norm(appointment.status)!=='completed')continue;
+      const bucket=completed[month(appointment.starts_at)];if(!bucket)continue;
       const haystack=norm(JSON.stringify([appointment.services,appointment.resources,appointment.metadata?.therapy]));
       const metric=METRICS.find(item=>item.tokens?.some(token=>haystack.includes(token)));
-      if(metric)completed[metric.key]+=1;
+      if(metric)bucket[metric.key]+=1;
     }
     return completed;
   }
@@ -115,16 +116,16 @@
     for(const [configuredPeriod,metrics] of Object.entries(configuredPeriods))for(const [metric,item] of Object.entries(metrics||{}))if(METRIC_KEYS.has(metric))targetRows.push({period:configuredPeriod+'-01',metric,target_value:Number(item?.target||0),notes:JSON.stringify({active:item?.active!==false,step:Number(item?.step||METRICS.find(def=>def.key===metric)?.step||0)})});
     targetRows.sort((a,b)=>String(a.period).localeCompare(String(b.period)));
     const eligiblePeriods=targetRows.map(row=>month(row.period)).filter(value=>value<=selected),first=eligiblePeriods[0]||selected,periods=[];for(let cursor=first;cursor<=selected;cursor=addMonths(cursor,1))periods.push(cursor);
-    const start=first+'-01',end=monthEnd(selected),selectedStart=selected+'-01',[invoices,budgets,payments,appointments]=await Promise.all([
+    const start=first+'-01',end=monthEnd(selected),[invoices,budgets,payments,appointments]=await Promise.all([
       loadAll(()=>db.from('sales_invoices').select('id,total,issue_date,status,original_invoice_id').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).gte('issue_date',start).lt('issue_date',end).order('issue_date',{ascending:true})),
       loadAll(()=>db.from('budgets').select('id,total,created_at').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).lt('created_at',end).order('created_at',{ascending:true})),
       loadAll(()=>db.from('payments').select('id,budget_id,amount,status,paid_at,cancelled_at,deleted_at').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).not('budget_id','is',null).lt('paid_at',end).order('paid_at',{ascending:true})),
-      loadAll(()=>db.from('appointments').select('id,status,services,resources,metadata').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).eq('status','completed').gte('starts_at',selectedStart).lt('starts_at',end).order('starts_at',{ascending:true}))
+      loadAll(()=>db.from('appointments').select('id,status,starts_at,services,resources,metadata').eq('organization_id',context.organizationId).eq('clinic_id',context.clinicId).is('deleted_at',null).eq('status','completed').gte('starts_at',start).lt('starts_at',end).order('starts_at',{ascending:true}))
     ]);
     const budgetIds=budgets.map(item=>item.id),lines=[];
     for(let offset=0;offset<budgetIds.length;offset+=100){const page=await db.from('budget_lines').select('budget_id,service_code,service_name,sessions,metadata').eq('organization_id',context.organizationId).in('budget_id',budgetIds.slice(offset,offset+100));if(page.error)throw page.error;lines.push(...(page.data||[]))}
-    const actuals=calculateActuals({periods,invoices,budgets,lines,payments,services:salesSetting.data?.payload?.services||[]}),completedActivity=calculateCompletedActivity(appointments),targets=resolveTargets({periods,rows:targetRows,actuals}),currentActual=actuals[selected]||emptyActual(),currentTarget=targets[selected]||{};
-    const metrics=Object.fromEntries(METRICS.map(metric=>{const actual=round(currentActual[metric.key]),target=currentTarget[metric.key]||{target:0,active:false,step:metric.step};return[metric.key,{actual,completed:metric.kind==='sessions'?completedActivity[metric.key]:null,target:round(target.target),active:target.active,step:target.step,percentage:target.active&&target.target>0?round(actual/target.target*100):null,remaining:target.active?round(Math.max(0,target.target-actual)):null,explicit:target.explicit}]}));
+    const paidActuals=calculateActuals({periods,invoices,budgets,lines,payments,services:salesSetting.data?.payload?.services||[]}),completedByPeriod=calculateCompletedActivity({periods,appointments}),goalActuals=Object.fromEntries(periods.map(period=>[period,Object.fromEntries(METRICS.map(metric=>[metric.key,metric.kind==='sessions'?completedByPeriod[period][metric.key]:paidActuals[period][metric.key]]))])),targets=resolveTargets({periods,rows:targetRows,actuals:goalActuals}),currentActual=goalActuals[selected]||emptyActual(),currentPaid=paidActuals[selected]||emptyActual(),currentTarget=targets[selected]||{};
+    const metrics=Object.fromEntries(METRICS.map(metric=>{const actual=round(currentActual[metric.key]),target=currentTarget[metric.key]||{target:0,active:false,step:metric.step};return[metric.key,{actual,paid:metric.kind==='sessions'?round(currentPaid[metric.key]):null,target:round(target.target),active:target.active,step:target.step,percentage:target.active&&target.target>0?round(actual/target.target*100):null,remaining:target.active?round(Math.max(0,target.target-actual)):null,explicit:target.explicit}]}));
     const comparison=otherSetting.data?.payload?.team_goals_murcia_comparison||null;
     return{period:selected,clinic:{name:'Alicante',metrics},comparison:comparison&&comparison.period===selected?comparison:null,comparisonUpdatedAt:otherSetting.data?.updated_at||null,rule:{moneyStep:5000,sessionStep:10,paidBudgetRequired:true}};
   }

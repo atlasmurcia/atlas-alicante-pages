@@ -29,15 +29,15 @@ assert.equal(actuals['2026-11'].team_bomba_paid_sessions,100);
 assert.equal(actuals['2026-12'].team_mbst_paid_sessions,-250);
 assert.equal(actuals['2026-12'].team_bomba_paid_sessions,-100);
 
-const completed=calculateCompletedActivity([
-  {status:'completed',services:['Tracción'],resources:[],metadata:{}},
-  {status:'completed',services:['MBST OSTEOSPIN'],resources:[],metadata:{}},
-  {status:'completed',services:[],resources:['Bomba Diamagnética'],metadata:{}},
-  {status:'pending',services:['Tracción'],resources:[],metadata:{}}
-]);
-assert.equal(completed.team_traction_paid_sessions,1);
-assert.equal(completed.team_mbst_paid_sessions,1);
-assert.equal(completed.team_bomba_paid_sessions,1);
+const completed=calculateCompletedActivity({periods,appointments:[
+  {status:'completed',starts_at:'2026-11-03T10:00:00Z',services:['Tracción'],resources:[],metadata:{}},
+  {status:'completed',starts_at:'2026-11-04T10:00:00Z',services:['MBST OSTEOSPIN'],resources:[],metadata:{}},
+  {status:'completed',starts_at:'2026-11-05T10:00:00Z',services:[],resources:['Bomba Diamagnética'],metadata:{}},
+  {status:'pending',starts_at:'2026-11-06T10:00:00Z',services:['Tracción'],resources:[],metadata:{}}
+]});
+assert.equal(completed['2026-11'].team_traction_paid_sessions,1);
+assert.equal(completed['2026-11'].team_mbst_paid_sessions,1);
+assert.equal(completed['2026-11'].team_bomba_paid_sessions,1);
 
 const targets=resolveTargets({periods,actuals,rows:[
   {period:'2026-11-01',metric:'team_net_invoicing',target_value:65000,notes:'{"active":true,"step":5000}'},
