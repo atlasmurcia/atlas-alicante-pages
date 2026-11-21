@@ -1,5 +1,6 @@
 (()=>{
  const fallbackUsers=[
+  ['ATLAS Objetivos','Objetivos y celebraciones'],
   ['Rubén Soler','Propietario'],['Teresa Echegaray Díaz de Figueroa','Fisioterapeuta'],['Andrés Neptali Torres Sancho','Fisioterapeuta'],['Enrique González Padilla','Fisioterapeuta'],
   ['Ana María Tortosa Villalba','Gestión'],['María de Los Ángeles Basanta Sánchez','Gestión'],['María Dolores Hernandez Serrano','Gestión'],['Carolina Corredera Marín','Recepción'],['Ivana Carla Cetrari','Recepción'],['Melanie Gabriela Tana Romero','Recepción']
  ];
@@ -52,8 +53,13 @@
    return (directoryResult.data||[]).map(profile=>{const name=profile.full_name,known=fallbackUsers.find(([expected])=>samePerson(expected,name));return known?{id:profile.user_id,name,role:known[1]}:{id:profile.user_id,name,role:profile.role||'Usuario de ATLAS'}}).filter(item=>item.name);
   }
   if(action==='internal-chat:list'){
-   const result=await client.from('internal_chat_messages').select('id,client_ref,sender_user_id,recipient_user_id,sender_name,recipient_name,body,created_at,read_at,deleted_at,deleted_by_user_id,deleted_by_name').eq('organization_id',me().organizationId).eq('clinic_id',me().clinicId).gte('created_at',new Date(Date.now()-CHAT_RETENTION_MS).toISOString()).order('created_at',{ascending:false}).limit(300);
-   if(result.error)throw result.error;return (result.data||[]).reverse().map(row=>({payload:chatRowToMessage(row),updated_at:row.created_at}));
+   const since=new Date(Date.now()-CHAT_RETENTION_MS).toISOString(),[result,objectives]=await Promise.all([
+    client.from('internal_chat_messages').select('id,client_ref,sender_user_id,recipient_user_id,sender_name,recipient_name,body,created_at,read_at,deleted_at,deleted_by_user_id,deleted_by_name').eq('organization_id',me().organizationId).eq('clinic_id',me().clinicId).gte('created_at',since).order('created_at',{ascending:false}).limit(300),
+    client.from('objective_notifications').select('id,kind,title,body,created_at,acknowledged_at').eq('organization_id',me().organizationId).eq('clinic_id',me().clinicId).eq('recipient_user_id',me().userId).gte('created_at',since).order('created_at',{ascending:false}).limit(100)
+   ]);
+   if(result.error)throw result.error;if(objectives.error)throw objectives.error;
+   const ordinary=(result.data||[]).map(row=>chatRowToMessage(row)),celebrations=(objectives.data||[]).map(row=>({id:'objective-'+row.id,objectiveId:row.id,objectiveKind:row.kind,senderId:null,recipientId:me().userId,senderName:'ATLAS Objetivos',recipientName:currentName(),text:(row.title?row.title+'\n':'')+row.body,createdAt:row.created_at,readAt:row.acknowledged_at}));
+   return [...ordinary,...celebrations].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt))).map(payload=>({payload,updated_at:payload.createdAt}));
   }
   if(action==='internal-chat:delete'){
    const messageId=String(payload?.messageId||'');if(!messageId)throw new Error('No se ha identificado el mensaje.');
