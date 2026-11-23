@@ -1,0 +1,47 @@
+--- a/functions/meta-leads/index.ts
++++ b/functions/meta-leads/index.ts
+@@ -406,31 +406,13 @@
+-      // Cada envío de formulario es un lead distinto. La conciliación con pacientes
+-      // evita duplicar la ficha clínica por teléfono sin mezclar tarjetas del embudo.
+-
+-      const { data, error } = await supabase
+-        .from("leads")
+-        .upsert(row, { onConflict: "clinic_id,external_id", ignoreDuplicates: true })
+-        .select("id,clinic_id")
+-        .maybeSingle();
+-
+-      if (error) {
+-        console.error("meta-leads database upsert failed", { code: error.code || null });
+-        results.push({ id: leadId, error: error.message });
+-        continue;
+-      }
+-
+-      if (data) {
+-        const fresh = await supabase.from("leads").select("*").eq("id", data.id).single();
+-        const pilot = fresh.data ? await enrollLiveWhatsappPilot(supabase, fresh.data) : { enrolled: false, reason: "lead_reload_failed" };
+-        results.push({ id: leadId, stored: data, whatsapp_ai_pilot: pilot });
+-        continue;
+-      }
+-
+-      const existing = await supabase
+-        .from("leads")
+-        .select("id,clinic_id")
+-        .eq("clinic_id", ALICANTE_CLINIC_ID)
+-        .eq("external_id", `meta:${leadId}`)
+-        .single();
+-      results.push(existing.error
+-        ? { id: leadId, error: existing.error.message }
+-        : { id: leadId, duplicate: true, stored: existing.data });
++      // Preserve the contact's current stage and follow-up on a new form submission.
++      const intake = await supabase.rpc("atlas_ingest_meta_lead", { p_row: row });
++      if (intake.error || !intake.data?.lead?.id) {
++        console.error("meta-leads intake failed", { code: intake.error?.code || null });
++        results.push({ id: leadId, error: intake.error?.message || "lead_intake_unconfirmed" });
++        continue;
++      }
++      const stored = intake.data.lead;
++      // Existing contacts are not enrolled again or sent another automatic greeting.
++      const pilot = intake.data.created
++        ? await enrollLiveWhatsappPilot(supabase, stored)
++        : { enrolled: false, reason: "existing_contact_preserved" };
++      results.push({ id: leadId, stored: { id: stored.id, clinic_id: stored.clinic_id }, duplicate: !intake.data.created, whatsapp_ai_pilot: pilot });

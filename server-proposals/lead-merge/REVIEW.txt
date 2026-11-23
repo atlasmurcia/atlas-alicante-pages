@@ -1,0 +1,77 @@
+FlowAtlas Alicante — comparar, editar y fusionar leads
+
+Estado: propuesta revisable. No se han fusionado, archivado ni editado leads reales.
+Base: atlasmurcia/atlas-alicante-pages, main 69b3105. Mantener la rama separada.
+
+Problema comprobado
+El receptor meta-leads v43 dedica una ficha a cada formulario y solo deduplica
+por clinic_id + external_id (identificador del envío), no por persona. Otro envío
+del mismo contacto puede aparecer como nuevo aunque ya tenga seguimiento.
+No fue necesario consultar filas de leads para determinarlo.
+
+Interfaz
+Comparar / fusionar en FlowAtlas abre un selector con coincidencias normalizadas
+de teléfono o correo. La coincidencia es solo una sugerencia. Se pueden seleccionar
+otras fichas y se exige comprobar la identidad antes de confirmar. Se ven ambas
+fichas completas y sus historiales, se elige la principal y se pueden escoger,
+editar o vaciar nombre, apellidos, contacto, responsable, origen y notas.
+La principal conserva etapa, estado y próxima acción; No contactar prevalece.
+Las notas se combinan de inicio. Los originales se conservan en el historial de
+fusión; las campañas y respuestas originales no desaparecen. Actividades y tareas
+se trasladan en una única transacción. La segunda ficha queda archivada.
+Editar o archivar una ficha deja un registro con antes/después. Archivar no es
+borrado definitivo. Una recuperación requiere revisión administrativa del historial;
+esta propuesta no incluye botón de deshacer ni permite borrar evidencias de auditoría.
+No fusiona fichas clínicas ni pacientes diferentes.
+
+Servidor
+`database.sql` es una propuesta, no una migración ejecutada. Crea funciones
+SECURITY INVOKER: no cambia RLS ni concede permisos de tablas. Requiere permiso
+patients_write y, si hay tareas, agenda_write. Bloquea las dos filas en orden,
+verifica versiones, clínica y paciente vinculado. Un error revierte toda la operación.
+Repetir una fusión ya confirmada devuelve el resultado sin duplicar la auditoría.
+El puente solo acepta estas acciones desde el iframe FlowAtlas del mismo origen.
+Sin las funciones instaladas la interfaz informa del bloqueo y no cambia fichas.
+
+`meta-leads.patch` se ha generado contra meta-leads v43 leído de la conexión
+individual. Sustituye la admisión por `atlas_ingest_meta_lead`. Solo service_role
+puede llamarla y solo admite Alicante. Una nueva entrada con nombre normalizado
+y teléfono o correo coincidentes registra la campaña íntegra como actividad de la
+ficha anterior. No cambia su seguimiento, consentimiento, próxima acción ni
+responsable, y no inicia otra bienvenida del piloto de WhatsApp. Un teléfono
+compartido con distinto nombre sigue siendo una persona distinta. Reintentos de
+un mismo envío son idempotentes mediante bloqueo transaccional. Los datos de
+campaña se conservan en metadata.incoming de la actividad, visibles al compararla.
+
+Antes de publicar
+1. Revisión humana de SQL, contrato y roles; confirmar Pages en main + raíz.
+2. Reproducir el esquema, RLS y triggers reales en un backend aislado y ejecutar
+   ambos tests. Las pruebas locales usan PostgreSQL embebido y DOM sintético;
+   no constituyen una prueba visual ni de todos los trabajadores reales.
+3. Revisar los consumidores de referencias lead_id (piloto IA, opciones de cita,
+   claims, borradores, atribución) antes de habilitar fusiones de contactos que
+   tengan automatismos activos. Esta propuesta conserva las referencias históricas
+   a la ficha archivada y no modifica ni cancela envíos de WhatsApp. Mientras no
+   se verifiquen estos circuitos, no habilitar la fusión en producción.
+4. Instalar funciones en el backend de pruebas, aplicar el parche del receptor
+   conservando sus dependencias, JWT y secretos. Probar una reentrada, reintento,
+   teléfono familiar, No contactar y concurrencia real.
+5. Revisar y adaptar también meta-leads-backfill, capture-lead e importaciones:
+   el parche incluido cubre meta-leads v43; no afirmar prevención completa hasta
+   que todas las entradas adopten el contrato. Evitar backfills durante el cambio.
+6. Tras la validación, desplegar servidor y receptor antes del frontend. Publicar
+   mediante PR revisada; comprobar desde la sesión real sin crear mensajes ni citas.
+7. Fusionar contactos existentes solo tras la selección y confirmación del equipo.
+   Esta entrega no hace fusiones masivas ni procesa la persona de la captura.
+
+Pruebas reproducibles (dependencias solo de QA, no se sirven al navegador)
+npm install --prefix /tmp/atlas-lead-qa @electric-sql/pglite@0.3.14 jsdom@26.1.0
+ATLAS_PGLITE_MODULE=/tmp/atlas-lead-qa/node_modules/@electric-sql/pglite node tests/lead-merge-database.cjs
+ATLAS_JSDOM_MODULE=/tmp/atlas-lead-qa/node_modules/jsdom node tests/lead-merge-ui.cjs
+node --check flowatlas/lead-merge.js
+
+Las pruebas comprueban conservación de etapa, campañas y ambos historiales,
+movimiento de tareas, No contactar, recuperación tras error, idempotencia,
+rechazo por versión antigua, acceso denegado, distinta clínica o distinto paciente,
+rollback ante nombre inválido, edición auditada, archivo lógico, entrada de
+campaña repetida y texto hostil tratado como texto.
