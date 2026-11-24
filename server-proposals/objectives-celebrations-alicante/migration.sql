@@ -189,7 +189,7 @@ begin
  values(p_organization_id,p_clinic_id,v_period,v_hour,v_values) on conflict(clinic_id,snapshot_hour) do update set values=excluded.values;
  v_day:=extract(isodow from timezone('Europe/Madrid',v_now))::integer::text;
  if v_settings.opening_hours?v_day then v_open:=array[v_settings.opening_hours->v_day->>0,v_settings.opening_hours->v_day->>1];end if;
- if v_previous is not null and v_open is not null
+ if false and v_previous is not null and v_open is not null
   and timezone('Europe/Madrid',v_now)::time between v_open[1]::time and v_open[2]::time
   and exists(select 1 from jsonb_each_text(v_values) n left join jsonb_each_text(v_previous) p using(key) where n.value::numeric>coalesce(p.value::numeric,0)) then
   v_summary:='🚀 Avance de Alicante: '||(select string_agg(case n.key when 'team_net_invoicing' then 'Facturación '||round(n.value::numeric)||' €' when 'team_traction_paid_sessions' then 'Tracción '||n.value when 'team_mbst_paid_sessions' then 'MBST '||n.value when 'team_bomba_paid_sessions' then 'Bomba '||n.value else 'Brains '||n.value end,' · ') from jsonb_each_text(v_values) n left join jsonb_each_text(v_previous) p using(key) where n.value::numeric>coalesce(p.value::numeric,0));
@@ -212,12 +212,12 @@ begin
    join public.memberships presenter on presenter.user_id=a.presenter_id and presenter.organization_id=p_organization_id and presenter.active and (presenter.clinic_id is null or presenter.clinic_id=p_clinic_id) and presenter.role in ('reception','assistant')
    join lateral (select (array_agg(candidate.user_id))[1] user_id from (select distinct pr.user_id from public.profiles pr join public.memberships m on m.user_id=pr.user_id and m.organization_id=p_organization_id and m.active and (m.clinic_id is null or m.clinic_id=p_clinic_id) where lower(trim(pr.full_name))=lower(trim(a.metadata->>'valuation_professional'))) candidate having count(*)=1) vp on true
    join lateral (select ap.id from public.appointments ap cross join lateral jsonb_array_elements_text(coalesce(ap.services,'[]'::jsonb)) service where ap.patient_id=a.patient_id and ap.clinic_id=p_clinic_id and ap.deleted_at is null and ap.status='completed' and ap.starts_at<=a.accepted_at and ap.starts_at>=a.accepted_at-interval '14 days' and (translate(lower(service),'áéíóúüñ','aeiouun') like '%valoraci%' or translate(lower(service),'áéíóúüñ','aeiouun') like '%1%consulta%') order by ap.starts_at desc limit 1) va on true
-   where a.presenter_id is not null and (coalesce((a.metadata->>'periodic_cash')::boolean,false) or a.net_paid>=a.total)
+   where a.presenter_id is not null and a.total>1300 and a.net_paid>=a.total
   ) select * from attributed
  loop
   insert into public.objective_notifications(organization_id,clinic_id,recipient_user_id,kind,period,title,body,payload,dedupe_key)
   select p_organization_id,p_clinic_id,recipient,'personal_sale',date_trunc('month',v_budget.accepted_at at time zone 'Europe/Madrid')::date,'¡Tratamiento cerrado!',
-   '🎉 ¡Felicidades, '||coalesce((select split_part(full_name,' ',1) from public.profiles where user_id=recipient),'equipo')||'! '||trim(v_budget.first_name||' '||coalesce(v_budget.last_name_1,''))||' ha cerrado su tratamiento y comenzará en breve. ¡Vamos, equipo!',
+   '🎉 ¡Felicidades, '||coalesce((select split_part(full_name,' ',1) from public.profiles where user_id=recipient),'equipo')||'! Has participado en el cierre de un tratamiento superior a 1.300 € completamente liquidado. Gracias por tu trabajo y por seguir sumando a FisioSport. ¡Vamos, equipo!',
    jsonb_build_object('budget_id',v_budget.id,'valuation_appointment_id',v_budget.valuation_appointment_id),'sale:'||v_budget.id
   from (select distinct unnest(array[v_budget.valuation_user_id,v_budget.presenter_id]) recipient) recipients on conflict do nothing;
  end loop;
