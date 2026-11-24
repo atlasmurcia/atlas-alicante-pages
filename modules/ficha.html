@@ -1988,6 +1988,6 @@ clinicalRecognition.onend=retry;try{clinicalRecognition.start()}catch(e){retry()
  window.addEventListener('keydown',event=>{if(event.key==='Escape'&&modal.classList.contains('open'))closePatientFollowups()});
  window.addEventListener('message',event=>{const message=event.data||{};if(message.type==='atlas:central-db-response'&&pending.has(message.requestId)){const item=pending.get(message.requestId);pending.delete(message.requestId);clearTimeout(item.timer);message.ok?item.resolve(message.data):item.reject(new Error(message.error||'Error del servidor'))}});
 })();
-</script><script src="./patient-financial-history.js?v=1"></script><script src="./patient-appointment-bulk-model.js?v=1"></script><script src="./patient-appointment-bulk.js?v=1"></script>
+</script><script src="./patient-financial-history.js?v=1"></script><script src="./patient-appointment-bulk-model.js?v=2"></script><script src="./patient-appointment-bulk.js?v=2"></script>
 </body></html>
 
