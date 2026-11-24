@@ -6501,10 +6501,28 @@ window.addEventListener('message',event=>{if(event.data?.type!=='atlas:open-qual
  };
  const baseReservationLabel=professionalReservationLabel;
  professionalReservationLabel=function(service){return ruleFor(service)?.label||baseReservationLabel(service)};
+ // Las citas antiguas pueden carecer del equipo o conservar minutos profesionales
+ // obsoletos. Derivar su reserva al calcular conflictos mantiene intactos los datos
+ // guardados y evita que el planificador ofrezca un equipo o terapeuta ya ocupado.
+ const reservationRuleForAppointment=appointment=>{
+  const services=[...(Array.isArray(appointment?.services)?appointment.services:[]),appointment?.therapy].filter(Boolean);
+  return services.map(ruleFor).find(Boolean)||null;
+ };
+ const applyReservationRuleForChecks=appointment=>{
+  const rule=reservationRuleForAppointment(appointment);
+  if(!rule)return appointment;
+  const resources=[...new Set([...(Array.isArray(appointment.resources)?appointment.resources:[appointment.resource]).filter(Boolean),rule.equipment])];
+  const hasProfessional=!!(appointment.professional||appointmentTherapists(appointment).length);
+  return {...appointment,resources,resource:appointment.resource||resources[0],professional_minutes:hasProfessional?rule.professional:0};
+ };
+ const basePlanAppointmentPool=planAppointmentPool;
+ planAppointmentPool=function(...args){return basePlanAppointmentPool.apply(this,args).map(applyReservationRuleForChecks)};
+ const baseConflictsInSet=conflictsInSet;
+ conflictsInSet=function(appointment,rows,ignoreId=null){return baseConflictsInSet(applyReservationRuleForChecks(appointment),(rows||[]).map(applyReservationRuleForChecks),ignoreId)};
  const baseApplyRuntimeSettings=applyRuntimeSettings;
  applyRuntimeSettings=function(...args){const result=baseApplyRuntimeSettings.apply(this,args);apply();return result};
  apply();
- window.ATLAS_RESOURCE_RESERVATION_RULES_V227=rules;
+ window.ATLAS_RESOURCE_RESERVATION_RULES_V227=Object.freeze({...rules,applyReservationRuleForChecks});
 })();
 </script>
 <script id="atlas-cash-monthly-management-v367">
