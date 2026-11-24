@@ -940,24 +940,25 @@ function render(){
  for(let m=8*60;m<22*60;m+=15){
    const t=timeStr(m); calendarHtml+=`<div class="cell time">${t}</div>`;
    shownResources.forEach(r=>{
-     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m);
+     let arr=dayApps.filter(a=>(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r) && appointmentStartSlot(a)===m && !(professionals.includes(r)&&appointmentTherapists(a).includes(r)&&professionalDuration(a)<=0));
      let proHolds=professionals.includes(r)
        ? dayApps.filter(a=>appointmentTherapists(a).includes(r) && !(a.resources||[a.resource]).includes(r) && appointmentStartSlot(a)===m && professionalDuration(a)>0)
        : [];
      let sim=simulation.filter(a=>a.date===currentDate&&(Array.isArray(a.resources)?a.resources:[a.resource]).includes(r)&&appointmentStartSlot(a)===m);
      let html='';
      const allAtStart=[...arr.map(a=>({a,kind:'appt'})),...proHolds.map(a=>({a,kind:'hold'}))];
-     const n=allAtStart.length;
+     const reservationMinutes=item=>item.kind==='hold'||professionals.includes(r)&&appointmentTherapists(item.a).includes(r)?professionalDuration(item.a):Number(item.a.duration||30);
+     const visualOverlap=allAtStart.some((left,index)=>allAtStart.slice(index+1).some(right=>intervalsOverlap(left.a.time,reservationMinutes(left),right.a.time,reservationMinutes(right))));
      allAtStart.forEach((item,idx)=>{
-       let block=item.kind==='hold'?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r);
-       if(n>1){
-         const width=(100/n);
+       let block=item.kind==='hold'||professionals.includes(r)&&appointmentTherapists(item.a).includes(r)?professionalHoldHtml(item.a,r):apptHtml(item.a,false,r);
+       if(visualOverlap){
+         const width=(100/allAtStart.length);
          block=block.replace('class="appt ',`class="appt multi `)
                     .replace('style="',`style="left:calc(${idx*width}% + 2px);right:auto;width:calc(${width}% - 4px);`);
        }
        html+=block;
      });
-     sim.forEach(a=>html+=apptHtml(a,true,r));
+     sim.forEach(a=>html+=professionals.includes(r)&&appointmentTherapists(a).includes(r)?professionalHoldHtml(a,r,true):apptHtml(a,true,r));
      let cls='cell',slotAvailable=true;
      if(professionals.includes(r)){
        const wd=new Date(currentDate+'T12:00:00').getDay();
@@ -981,6 +982,7 @@ function render(){
 }
 function effectiveStatus(a){return a.status==='Cancelada'?'Cancelada':conflictsFor(a,a.id).length?'Conflicto':a.status==='Conflicto'?'Pendiente':a.status}
 function appointmentStartSlot(a){const minute=mins(a?.time);return Number.isFinite(minute)?Math.floor(minute/15)*15:minute}
+function calendarReservationMetrics(a,duration){const offset=Math.max(0,mins(a.time)-appointmentStartSlot(a)),minutes=Math.max(0,Number(duration)||0);return{top:3+offset*32/15,height:Math.max(8,Math.ceil(minutes*32/15)-4)}}
 function professionalReservationLabel(service){
  const normalized=normalizeSearch(service);
  if(normalized.includes('bomba')&&normalized.includes('dinamica'))return 'Poner bomba';
@@ -990,15 +992,16 @@ function professionalReservationLabel(service){
 }
 function professionalHoldHtml(a,column=''){
  const dur=professionalDuration(a);
- const slots=Math.max(1,Math.ceil(dur/15));
- const height=(slots*32)-4;
+ const metrics=calendarReservationMetrics(a,dur);
  const assigned=Object.entries(a.therapists||{}).filter(([,p])=>p===column).map(([s])=>s);
  const label=assigned.length?assigned.map(professionalReservationLabel).join(' + '):(a.therapy==='BRAINS'?'Poner Brains':professionalReservationLabel(a.therapy));
  const forced=a.forced?' forced':'';
  let statusClass=effectiveStatus(a)==='Conflicto'?' conflict':a.status==='Pendiente'?' pending':'';
  if(a.status==='Cancelada')statusClass+=' cancelled';
- return `<div class="appt${statusClass}${forced}" style="height:${height}px" data-id="${a.id}" data-column="${column}">
-   <b class="${patientInvoiceClassForAppointment(a)}" title="${a.patient}">${shortPatient(a.patient)}</b>${label}<div class="small">${a.time} · ${dur}m profesional</div>
+ const compact=dur<12,display=compact?`${dur}m`:`<b class="${patientInvoiceClassForAppointment(a)}" title="${a.patient}">${shortPatient(a.patient)}</b>${label}<div class="small">${a.time} · ${dur}m profesional</div>`;
+ const title=`${a.patient||'Paciente'} · ${label} · ${dur} min de profesional`;
+ return `<div class="appt${statusClass}${forced}${compact?' professional-reservation-compact':''}" tabindex="0" aria-label="${hesc(title)}" title="${hesc(title)}" style="top:${metrics.top}px;height:${metrics.height}px;${compact?'padding:0 2px;font-size:8px;line-height:8px;text-align:center':''}" data-id="${arguments[2]?'':a.id}" data-column="${column}">
+   ${display}
  </div>`;
 }
 function shortPatient(name){
@@ -1010,11 +1013,10 @@ function apptHtml(a,sim,column=''){
  let st=sim?'simulated':effectiveStatus(a)==='Conflicto'?'conflict':a.status==='Pendiente'?'pending':'';
  if(a.status==='Cancelada')st+=' cancelled';if(column==='Seguimientos')st+=' followup';if(column==='Recepción')st+=' reception';
  if(a.forced) st+=' forced';
- const slots=Math.max(1,Math.ceil(a.duration/15));
- const height=(slots*32)-4;
+ const metrics=calendarReservationMetrics(a,Number(a.duration||30));
  const forcedMark=a.forced?'<div class="small">⚠ FORZADA</div>':'';
  const services=Array.isArray(a.services)&&a.services.length?a.services:[a.therapy];const summary=services.length>2?`${services[0]} + ${services.length-1} más`:services.join(' + ');const ficha=patientByCode(a.patientCode);const phone=ficha?.phone||'';
- return `<div class="appt ${st}" tabindex="0" style="height:${height}px" data-id="${sim?'':a.id}" data-column="${column}"><b class="${patientInvoiceClassForAppointment(a)}" title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${a.aftercarePhase==='month1'?'<div class="small atlas-aftercare-label">Seguimiento presencial 1er mes</div>':a.aftercarePhase==='reactivation'?'<div class="small atlas-aftercare-label">MBST reactivación · Tarjeta '+Number(a.aftercareCardNumber)+'</div>':''}${a.pumpCourseId?'<div class="small atlas-pump-zone">'+window.atlasPumpPlanning.label(a).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'</div>':''}${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b class="${patientInvoiceClassForAppointment(a)}">${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${String(a.notes||'Sin observaciones').slice(0,180).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(a.notes||'').length>180?'…':''}</div></div></div>`;
+ return `<div class="appt ${st}" tabindex="0" style="top:${metrics.top}px;height:${metrics.height}px" data-id="${sim?'':a.id}" data-column="${column}"><b class="${patientInvoiceClassForAppointment(a)}" title="${a.patient}">${shortPatient(a.patient)}</b><span title="${summary}">${summary}</span><div class="small">${a.time} · ${a.duration}m</div>${a.aftercarePhase==='month1'?'<div class="small atlas-aftercare-label">Seguimiento presencial 1er mes</div>':a.aftercarePhase==='reactivation'?'<div class="small atlas-aftercare-label">MBST reactivación · Tarjeta '+Number(a.aftercareCardNumber)+'</div>':''}${a.pumpCourseId?'<div class="small atlas-pump-zone">'+window.atlasPumpPlanning.label(a).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'</div>':''}${services.length>1?`<span class="multi-badge">＋${services.length}</span>`:''}${forcedMark}<div class="appt-tooltip" role="tooltip"><b class="${patientInvoiceClassForAppointment(a)}">${a.patient}</b><div>${phone||'Sin teléfono'}</div><div>${services.join(' · ')}</div><div>${String(a.notes||'Sin observaciones').slice(0,180).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(a.notes||'').length>180?'…':''}</div></div></div>`;
 }
 
 function mergeIntervals(intervals){
