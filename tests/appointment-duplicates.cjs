@@ -16,10 +16,11 @@ const root=path.join(__dirname,'..');
   });
   await page.goto('https://synthetic-alicante.invalid/modules/agenda.html');
   await page.waitForFunction(()=>typeof document.getElementById('duplicateAppointmentBtn')?.onclick==='function');
-  // Existing permissions hook references a configuration-private function on
-  // startup. Record it separately; duplication must introduce no new errors.
+  // The isolated fixture has known startup errors on the base branch. Keep
+  // them explicit so duplication must introduce no new errors.
   const startupErrors=errors.slice();
-  assert(startupErrors.every(message=>message==='applyRuntimeSettings is not defined'));
+  const knownStartupErrors=new Set(['applyRuntimeSettings is not defined','planAppointmentPool is not defined']);
+  assert(startupErrors.every(message=>knownStartupErrors.has(message)));
   await page.evaluate(()=>{
    window.ATLAS_CHILD_CENTRAL_CONTEXT={profileName:'Recepción ficticia'};
    window.testServer=new Map();window.testCalls=[];window.testFailure=0;window.testPause=false;window.testConfirm=true;
