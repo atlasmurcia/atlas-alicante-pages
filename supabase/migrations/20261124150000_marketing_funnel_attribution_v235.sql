@@ -268,10 +268,10 @@ begin
       (select count(*) from selected_leads where patient_id is null) leads_without_patient_link,
       (select count(*) from appointment_flags a where a.patient_id is not null
         and not exists(select 1 from appointment_links x where x.id=a.id)
-        and exists(select 1 from selected_leads l where l.patient_id=a.patient_id)) appointments_ambiguous_or_unmatched,
+        and exists(select 1 from selected_leads l where l.patient_id=a.patient_id and a.starts_at>=l.lead_at)) appointments_ambiguous_or_unmatched,
       (select count(*) from budget_events b where b.patient_id is not null
         and not exists(select 1 from budget_links x where x.id=b.id)
-        and exists(select 1 from selected_leads l where l.patient_id=b.patient_id)) budgets_ambiguous_or_unmatched
+        and exists(select 1 from selected_leads l where l.patient_id=b.patient_id and b.presentation_date>=l.lead_at)) budgets_ambiguous_or_unmatched
   )
   select jsonb_build_object(
     'generated_at',now(),'from',p_from,'to',p_to,
