@@ -197,7 +197,7 @@ begin
     order by a.id, case when direct_lead.id is not null then 0 else 1 end
   ),
   budget_events as (
-    select b.id,b.lead_id,b.patient_id,b.status,b.accepted_at,b.presented_at,b.created_at,b.metadata,
+    select b.id,b.lead_id,b.lead_attribution_method,b.patient_id,b.status,b.accepted_at,b.presented_at,b.created_at,b.metadata,
       coalesce(b.lead_id,case
         when coalesce(b.metadata->>'lead_id',b.metadata->'leadContext'->>'id',b.metadata->'leadContext'->>'lead_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         then coalesce(b.metadata->>'lead_id',b.metadata->'leadContext'->>'id',b.metadata->'leadContext'->>'lead_id')::uuid end) as linked_lead_id,
