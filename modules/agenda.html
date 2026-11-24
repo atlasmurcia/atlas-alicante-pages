@@ -2268,8 +2268,25 @@ window.addEventListener('message',function(event){const msg=event.data||{};if(ms
  }
  searchResults.addEventListener('click',function(ev){openPatientFromSearch(ev.target)});
  searchResults.addEventListener('keydown',function(ev){if(ev.key==='Enter')openPatientFromSearch(ev.target)});
- window.addEventListener('message',function(ev){
+ let atlasPatientAppointmentActionSequence=0;
+ window.addEventListener('message',async function(ev){
    const msg=ev.data||{};if(msg.type!=='atlasAlicante:show-patient'||!msg.patient)return;
+   const actionSequence=++atlasPatientAppointmentActionSequence;
+   if(msg.appointmentAction){
+    if(ev.source!==parent||!['move','cancel'].includes(msg.appointmentAction)||!msg.appointmentId)return;
+    try{
+     if(!msg.patient.remoteId||typeof window.atlasCentralRequest!=='function'||typeof window.atlasCentralAppointmentFromRow!=='function')throw new Error('Actualiza la ficha y espera a que la agenda se conecte.');
+     const rows=await window.atlasCentralRequest('appointments:listForPatient',{patientId:msg.patient.remoteId});if(actionSequence!==atlasPatientAppointmentActionSequence)return;
+     const row=(rows||[]).find(row=>[row.id,row.client_ref].some(id=>String(id||'')===String(msg.appointmentId))&&String(row.patient_id)===String(msg.patient.remoteId));
+     if(!row||row.deleted_at||row.metadata?.historico===true||['completed','cancelled','done','in_progress'].includes(row.status))throw new Error('La cita está protegida, anulada o ya no está disponible.');
+     const exact=window.atlasCentralAppointmentFromRow(row);if(!atlasPatientMatches(exact,msg.patient))throw new Error('No se ha podido verificar el paciente de esta cita.');
+     const at=appointments.findIndex(a=>String(a.centralId||'')===String(row.id)||String(a.id)===String(exact.id));if(at<0)appointments.push(exact);else appointments[at]=exact;
+     currentDate=exact.date;document.getElementById('patientsBack')?.classList.remove('open');save();render();openDrawer(exact.id);
+     const button=document.getElementById(msg.appointmentAction==='cancel'?'deleteBtn':'moveBtn');if(!button||button.disabled)throw new Error('La acción no está disponible para esta cita.');button.click();
+    }catch(error){if(actionSequence===atlasPatientAppointmentActionSequence)alert('No se ha abierto la cita: '+error.message)}
+    return;
+   }
+
    document.getElementById('patientsBack')?.classList.remove('open');
    const filter=document.getElementById('patientFilter');if(filter)filter.value=msg.patient.name;
    const canonical=window.atlasPlanningHelpersV136?.canonicalPlanService||((value)=>String(value||'')),list=appointments.filter(a=>atlasPatientMatches(a,msg.patient)&&a.status!=='Cancelada').sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)),today=typeof cashToday==='function'?cashToday():new Date().toISOString().slice(0,10),requested=msg.appointmentId?list.find(a=>String(a.id)===String(msg.appointmentId)):null,dated=!requested&&msg.date?list.find(a=>a.date===msg.date&&(!msg.time||a.time===msg.time)&&(!msg.service||canonical(a.therapy)===canonical(msg.service))):null,target=requested||dated||list.find(a=>a.date>=today)||list[0];
