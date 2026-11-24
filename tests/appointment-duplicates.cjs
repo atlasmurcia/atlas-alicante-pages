@@ -54,6 +54,11 @@ const root=path.join(__dirname,'..');
   const submit=()=>page.evaluate(()=>document.querySelector('#duplicateAppointmentBack form').onsubmit({preventDefault(){}}));
   const status=()=>page.locator('#duplicateStatus').innerText();
   let checks=0;const check=async(label,fn)=>{await fn();checks++;console.log('PASS '+label)};
+  await check('campaign funnel is reachable only by management profiles',async()=>{
+   const visible=await page.evaluate(()=>{window.testFunnelOpen=null;window.addEventListener('message',event=>{if(event.data?.type==='atlas:open-module')window.testFunnelOpen=event.data.module});window.dispatchEvent(new MessageEvent('message',{data:{type:'atlas:auth',user:{permissions:['marketing'],managementAccess:true}}}));const nav=document.getElementById('campaignFunnelNav'),shown=getComputedStyle(nav).display!=='none';nav.click();return shown});
+   assert.equal(visible,true);await page.waitForFunction(()=>window.testFunnelOpen==='marketing');
+   const hidden=await page.evaluate(()=>{window.dispatchEvent(new MessageEvent('message',{data:{type:'atlas:auth',user:{permissions:['marketing'],managementAccess:false}}}));return getComputedStyle(document.getElementById('campaignFunnelNav')).display==='none'});assert.equal(hidden,true);
+  });
   await check('MBST without a therapist duplicates with real agenda functions',async()=>{
    await page.evaluate(()=>testOpen());await submit();assert.match(await status(),/1 cita creada/);
    assert.deepEqual(await page.evaluate(()=>({count:appointments.length,staff:appointments[1].professional,resource:appointments[1].resource,time:appointments[1].time,date:appointments[1].date})),{count:2,staff:'',resource:'MBST OSTEOSPIN',time:'17:00',date:'2026-12-02'});
