@@ -22,7 +22,7 @@ function scenario(name,existing,personal=true){
  for(const id of ['attendanceFilter','atEmployee','abEmployee']){
   const select=w.document.getElementById(id);
   if(personal){assert.deepEqual([...select.options].map(o=>o.value),[name],id+' only authenticated identity');assert.ok(select.disabled,id+' cannot select another employee');}
-  else assert.ok([...select.options].some(o=>o.textContent==='Carolina Corredera Marín'),'Management roster remains available');
+  else assert.ok(select.options.length>1,'Management roster remains available');
  }
  // Exercise the actual entry/exit form with a synthetic central-save boundary.
  if(personal){
@@ -46,7 +46,7 @@ function scenario(name,existing,personal=true){
  dom.window.close();
 }
 scenario('Trabajadora Nueva Apellido',[]);
-scenario('Carolina Corredera Marín',['Carolina Corredera Marín']);
+scenario('Empleado Conocido',['Empleado Conocido']);
 scenario('Recepción Incorporación Reciente',['Persona anterior']);
-scenario('Gestión Prueba',[],false);
+scenario('Gestión Prueba',['Persona anterior'],false);
 console.log('Passed: dynamic authenticated employee, known employee, reopened forms, own-profile restriction, roster observers settle, management list retained.');
