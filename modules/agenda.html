@@ -66,11 +66,11 @@ button{cursor:pointer}.primary{background:var(--blue);color:#fff;border-color:va
 .workspace{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .toolbar{padding:7px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
 .legend{display:flex;gap:7px;flex-wrap:wrap}.pill{font-size:12px;padding:5px 8px;border-radius:999px;background:#eef2f6}
-.calendar-wrap{overflow:auto;max-height:calc(100vh - 150px)}
-.calendar{display:grid;grid-template-columns:52px repeat(12,112px);min-width:1396px;position:relative}
+.calendar-wrap{overflow-x:hidden;overflow-y:auto;max-height:calc(100vh - 150px)}
+.calendar{display:grid;width:100%;grid-template-columns:52px repeat(12,minmax(0,1fr));min-width:0;position:relative}
 .agenda-now-line{position:absolute;left:52px;right:0;height:2px;background:#e11d48;z-index:8;pointer-events:none;box-shadow:0 0 0 1px #fff8}.agenda-now-line::before{content:"";position:absolute;left:-5px;top:50%;width:10px;height:10px;border-radius:50%;background:#e11d48;transform:translateY(-50%);box-shadow:0 0 0 3px #fff}.agenda-now-line span{position:absolute;left:8px;top:50%;transform:translateY(-50%);padding:3px 7px;border-radius:999px;background:#e11d48;color:#fff;font-size:10px;font-weight:900;line-height:1;box-shadow:0 2px 6px #0003;white-space:nowrap}
-.head{position:sticky;top:0;background:#f8fafc;z-index:5;font-size:11px;font-weight:700;text-align:center;min-height:42px;padding:4px 3px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
-.cell{height:32px;min-height:32px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:3px;position:relative;overflow:visible}
+.head{position:sticky;top:0;background:#f8fafc;z-index:5;font-size:11px;font-weight:700;text-align:center;min-height:42px;min-width:0;overflow-wrap:anywhere;padding:4px 3px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cell{height:32px;min-height:32px;min-width:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:3px;position:relative;overflow:visible}
 .time{font-size:10px;color:var(--muted);text-align:right;padding:4px 5px;position:sticky;left:0;background:#fff;z-index:4}
 .appt{position:absolute;left:3px;right:3px;top:3px;z-index:3;border-radius:7px;padding:5px 6px;font-size:10px;line-height:1.12;cursor:pointer;border-left:4px solid var(--greenb);background:var(--green);overflow:hidden;box-shadow:0 1px 2px #0001}
 .appt.pending{border-left-color:var(--orangeb);background:var(--orange)}
@@ -923,8 +923,9 @@ function render(){
  if(view==='professional') shownResources=[...specialColumns,...professionals];
  if(view==='equipment') shownResources=[...specialColumns,...equipment];
  const cal=document.getElementById('cal');
- cal.style.gridTemplateColumns=`52px repeat(${shownResources.length},112px)`;
- cal.style.minWidth=(52+shownResources.length*112)+'px';
+ cal.style.width='100%';
+ cal.style.gridTemplateColumns=`52px repeat(${shownResources.length},minmax(0,1fr))`;
+ cal.style.minWidth='0';
  const weekday=new Date(currentDate+'T12:00:00').getDay();
  let calendarHtml='<div class="head">Hora</div>'+shownResources.map(r=>{
    const ints=professionals.includes(r)?professionalIntervalsForDate(r,currentDate):(schedules[r]?.[weekday]||[]);
