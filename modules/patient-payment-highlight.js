@@ -11,23 +11,23 @@
   const paint=()=>{if(typeof selected==='undefined'||!selected?.patient)return;patientLabel.style.color=eligible(selected.patient)?'#b42318':'';patientLabel.style.fontWeight=eligible(selected.patient)?'900':''};
   window.addEventListener('message',event=>{const m=event.data||{};
    if(m.type==='atlas:patient-payment-totals'&&event.source===agendaFrame.contentWindow&&Array.isArray(m.rows)){accept(m.rows);send();paint()}
-   if(m.type==='atlas:patient-selected'){send();paint()}
+   if(m.type==='atlas:patient-selected'){send();paint();agendaFrame.contentWindow?.postMessage({type:'atlas:refresh-payment-highlight',patientId:m.patient?.remoteId||m.patient?.id||''},'*')}
    if(m.type==='atlas:central-module-ready'&&event.source===fichaFrame.contentWindow)send();
    if(changes.includes(m.type)&&[agendaFrame.contentWindow,fichaFrame.contentWindow].includes(event.source))agendaFrame.contentWindow?.postMessage({type:'atlas:refresh-payment-highlight'},'*');
   });return;
  }
  if(document.getElementById('patientsTableBody')){
-  let timer,busy=false,again=false,ready=false;
+  let timer,busy=false,again=false,ready=false,requestedPatientId='';
   function paint(){renderPatientsTable();render();const appointment=appointments.find(a=>String(a.id)===String(selectedId)),name=document.getElementById('dName');if(name&&appointment)name.classList.toggle('patient-invoice-alert',eligible(patientForAppointment(appointment)))}
   async function refresh(){
    if(!ready||document.hidden||typeof window.atlasCentralRequest!=='function')return;
    if(busy){again=true;return}busy=true;
-   try{const rows=await window.atlasCentralRequest('patients:list',{paymentTotalsOnly:true});const totals=(rows||[]).map(row=>({id:String(row.id),code:String(row.patient_number||''),total:row.income}));accept(totals);paint();parent.postMessage({type:'atlas:patient-payment-totals',rows:totals},'*')}
+   try{const ids=new Set(),target=requestedPatientId;requestedPatientId='';if(target)ids.add(String(target));for(const appointment of appointments||[]){if(typeof currentDate==='string'&&appointment.date!==currentDate)continue;const patient=patientForAppointment(appointment);if(patient?.remoteId)ids.add(String(patient.remoteId));if(ids.size>=100)break}if(document.getElementById('patientsBack')?.classList.contains('open'))for(const row of document.querySelectorAll('#patientsTableBody tr[data-code]')){const patient=patientMaster.find(item=>String(item.code)===String(row.dataset.code));if(patient?.remoteId)ids.add(String(patient.remoteId));if(ids.size>=100)break}if(!ids.size)return;const totals=await window.atlasCentralRequest('patients:payment-totals',{patientIds:[...ids].slice(0,100)});accept(totals||[]);paint();parent.postMessage({type:'atlas:patient-payment-totals',rows:totals||[]},'*')}
    catch(error){console.warn('No se pudo actualizar el color por pagos acumulados',error)}
    finally{busy=false;if(again){again=false;schedule()}}
   }
   function schedule(){clearTimeout(timer);timer=setTimeout(refresh,350)}
-  window.addEventListener('message',event=>{const m=event.data||{};if(m.type==='atlas:central-ready')ready=true;if(m.type==='atlas:central-ready'||m.type==='atlas:refresh-payment-highlight'||changes.includes(m.type))schedule()});
+  window.addEventListener('message',event=>{const m=event.data||{};if(m.type==='atlas:central-ready')ready=true;if(m.type==='atlas:refresh-payment-highlight'&&m.patientId)requestedPatientId=String(m.patientId);if(m.type==='atlas:central-ready'||m.type==='atlas:refresh-payment-highlight'||changes.includes(m.type))schedule()});
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule()});window.addEventListener('focus',schedule);
   setInterval(schedule,60000);
   parent.postMessage({type:'atlas:central-module-ready',module:'agenda'},'*');return;
